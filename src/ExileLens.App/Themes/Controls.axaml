@@ -177,30 +177,7 @@
     <Setter Property="CornerRadius" Value="{DynamicResource RadiusSmall}" />
   </Style>
 
-  <!-- Thin, unobtrusive scrollbars -->
-  <Style Selector="ScrollBar">
-    <Setter Property="AllowAutoHide" Value="True" />
-  </Style>
-  <Style Selector="ScrollBar /template/ Thumb">
-    <Setter Property="Background" Value="{DynamicResource ScrollThumbBrush}" />
-    <Setter Property="CornerRadius" Value="4" />
-  </Style>
-  <!-- Fluent widens the bar on hover (track, arrow buttons, full-width thumb). Keep it thin in every state. -->
-  <Style Selector="ScrollBar:vertical /template/ Thumb">
-    <Setter Property="RenderTransform" Value="{DynamicResource VerticalSmallScrollThumbScaleTransform}" />
-  </Style>
-  <Style Selector="ScrollBar:horizontal /template/ Thumb">
-    <Setter Property="RenderTransform" Value="{DynamicResource HorizontalSmallScrollThumbScaleTransform}" />
-  </Style>
-  <Style Selector="ScrollBar /template/ Thumb:pointerover /template/ Border, ScrollBar /template/ Thumb:pressed /template/ Border">
-    <Setter Property="Background" Value="{DynamicResource ScrollThumbBrush}" />
-  </Style>
-  <Style Selector="ScrollBar /template/ Grid#Root">
-    <Setter Property="Background" Value="Transparent" />
-  </Style>
-  <Style Selector="ScrollBar /template/ Rectangle#TrackRect, ScrollBar /template/ RepeatButton">
-    <Setter Property="Opacity" Value="0" />
-  </Style>
+  <!-- Scrollbars: see Themes/ScrollBar.axaml (control theme replaces Fluent's). -->
 
   <!-- Sidebar navigation -->
   <Style Selector="ListBox.nav">

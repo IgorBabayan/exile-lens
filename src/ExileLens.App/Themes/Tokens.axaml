@@ -39,6 +39,8 @@
       <SolidColorBrush x:Key="OverlayBackgroundBrush" Color="#FBFAF6" />
       <Color x:Key="ScrollThumbColor">#33000000</Color>
       <SolidColorBrush x:Key="ScrollThumbBrush" Color="#33000000" />
+      <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#59000000" />
+      <SolidColorBrush x:Key="ScrollThumbActiveBrush" Color="#73000000" />
       <Color x:Key="SafeColor">#2F8F5B</Color>
       <SolidColorBrush x:Key="SafeBrush" Color="#2F8F5B" />
       <Color x:Key="WarningColor">#A87E1B</Color>
@@ -93,6 +95,8 @@
       <SolidColorBrush x:Key="OverlayBackgroundBrush" Color="#262624" />
       <Color x:Key="ScrollThumbColor">#40FFFFFF</Color>
       <SolidColorBrush x:Key="ScrollThumbBrush" Color="#40FFFFFF" />
+      <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#73FFFFFF" />
+      <SolidColorBrush x:Key="ScrollThumbActiveBrush" Color="#8CFFFFFF" />
       <Color x:Key="SafeColor">#4CAF76</Color>
       <SolidColorBrush x:Key="SafeBrush" Color="#4CAF76" />
       <Color x:Key="WarningColor">#D8AE46</Color>
