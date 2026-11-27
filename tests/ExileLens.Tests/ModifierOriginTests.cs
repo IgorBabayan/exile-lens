@@ -61,6 +61,42 @@ public sealed class ModifierOriginTests
     }
 
     [TestMethod]
+    public void UnscalableValueNoteIsNotPartOfTheModifier()
+    {
+        var item = Fixture.Parse("poe1/foulborn-unique-shield-advanced.txt", GameId.Poe1);
+
+        Assert.IsFalse(item.Modifiers.Any(m => m.Text.Contains("Unscalable", StringComparison.Ordinal)));
+        Assert.AreEqual("Chaos Damage taken does not bypass Energy Shield while not on Low Life",
+            item.Modifiers.Single(m => m.Text.StartsWith("Chaos Damage", StringComparison.Ordinal)).Text);
+        Assert.AreEqual("Reflect Shocks applied to you to all Enemies within # metres",
+            item.Modifiers.Single(m => m.Text.StartsWith("Reflect", StringComparison.Ordinal)).Pattern);
+    }
+
+    [TestMethod]
+    [DataRow("Damage cannot be Reflected — Unscalable Value (mutated)")]
+    [DataRow("Damage cannot be Reflected (mutated) — Unscalable Value")]
+    public void UnscalableNoteAndMutatedMarkerAreStrippedInEitherOrder(string line)
+    {
+        var body = ModifierText.StripKindSuffix(line, out var kind).ToString();
+
+        Assert.AreEqual("Damage cannot be Reflected", body);
+        Assert.AreEqual(ModifierKind.Mutated, kind);
+    }
+
+    [TestMethod]
+    public void FoulbornUniqueUsesMutatedTradeFilter()
+    {
+        var item = Fixture.Parse("poe1/foulborn-unique-shield-advanced.txt", GameId.Poe1);
+        var builder = new TradeQueryBuilder();
+        var options = new TradeQueryOptions(Games.Poe1.FilterLayout);
+
+        var misc = builder.Build(item, builder.CreateDefaultFilters(item, null, options), options)["query"]!["filters"]!["misc_filters"]!["filters"]!;
+
+        Assert.AreEqual("true", misc["mutated"]!["option"]!.GetValue<string>());
+        Assert.IsNull(misc["foulborn_item"]);
+    }
+
+    [TestMethod]
     public void MutatedModifierResolvesThroughExplicitStats()
     {
         var item = Fixture.Parse("poe1/foulborn-unique-shield-advanced.txt", GameId.Poe1);

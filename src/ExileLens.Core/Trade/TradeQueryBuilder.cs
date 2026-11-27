@@ -131,13 +131,19 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
             filters.Add(new SearchFilter { Key = "ilvl", Kind = FilterKind.ItemLevel, Label = "Item level", Min = ilvl, Enabled = false });
         }
 
-        if (item.Quality is { } q && q > 0)
+        var isGem = item.Category == ItemCategory.Gem;
+        if (isGem)
         {
-            filters.Add(new SearchFilter
-            {
-                Key = "quality", Kind = FilterKind.Quality, Label = "Quality", Min = q,
-                Enabled = item.Category == ItemCategory.Gem,
-            });
+            // Gems always get both fields: level and quality drive the price far more than anything else on them.
+            // A missing "Level:" line means level 1; a missing "Quality:" line means 0% (searched only when enabled).
+            var gemLevel = item.GemLevel ?? 1;
+            var gemQuality = item.Quality ?? 0;
+            filters.Add(new SearchFilter { Key = "gem_level", Kind = FilterKind.GemLevel, Label = "Gem level", Min = gemLevel, Enabled = true });
+            filters.Add(new SearchFilter { Key = "quality", Kind = FilterKind.Quality, Label = "Quality", Min = gemQuality, Enabled = gemQuality > 0 });
+        }
+        else if (item.Quality is { } q && q > 0)
+        {
+            filters.Add(new SearchFilter { Key = "quality", Kind = FilterKind.Quality, Label = "Quality", Min = q, Enabled = false });
         }
 
         if (item.Sockets.Count > 0)
@@ -149,7 +155,7 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
             }
         }
 
-        if (item.GemLevel is { } gl)
+        if (!isGem && item.GemLevel is { } gl)
         {
             filters.Add(new SearchFilter { Key = "gem_level", Kind = FilterKind.GemLevel, Label = "Gem level", Min = gl, Enabled = true });
         }
@@ -228,9 +234,10 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
         }
 
         // Foulborn and regular copies of a unique share a name but not a price: always pin the variant.
+        // The live PoE 1 trade data lists the Foulborn filter as misc_filters "mutated" (the old "foulborn_item" is ignored).
         if (layout.FoulbornGroup is { } foulbornGroup && item.Rarity == ItemRarity.Unique && item.Name is not null)
         {
-            Group(foulbornGroup)["foulborn_item"] = new JsonObject { ["option"] = item.IsFoulborn ? "true" : "false" };
+            Group(foulbornGroup)["mutated"] = new JsonObject { ["option"] = item.IsFoulborn ? "true" : "false" };
         }
 
         if (layout.SynthesisedGroup is { } synthesisedGroup && item.IsSynthesised)
@@ -266,11 +273,11 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
                 case FilterKind.ItemLevel:
                     Group(layout.ItemLevelGroup)["ilvl"] = Range(f.Min, f.Max);
                     break;
-                case FilterKind.Quality:
-                    Group(layout.QualityGroup)["quality"] = Range(f.Min, f.Max);
+                case FilterKind.Quality when Range(f.Min, f.Max) is { } quality:
+                    Group(layout.QualityGroup)["quality"] = quality;
                     break;
-                case FilterKind.GemLevel:
-                    Group(layout.GemLevelGroup)["gem_level"] = Range(f.Min, f.Max);
+                case FilterKind.GemLevel when Range(f.Min, f.Max) is { } gemLevel:
+                    Group(layout.GemLevelGroup)["gem_level"] = gemLevel;
                     break;
                 case FilterKind.Sockets:
                     Group(layout.SocketGroup)[layout.SocketKey] = Range(f.Min, f.Max);

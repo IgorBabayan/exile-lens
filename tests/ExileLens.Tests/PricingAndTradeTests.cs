@@ -182,7 +182,7 @@ public sealed class TradeQueryTests
         query = builder.Build(chosen, builder.CreateDefaultFilters(chosen, Stats(), options), options)["query"]!;
         Assert.AreEqual("Lioneye's Glare", query["name"]!.GetValue<string>());
         Assert.AreEqual("Imperial Bow", query["type"]!.GetValue<string>());
-        Assert.AreEqual("false", query["filters"]!["misc_filters"]!["filters"]!["foulborn_item"]!["option"]!.GetValue<string>());
+        Assert.AreEqual("false", query["filters"]!["misc_filters"]!["filters"]!["mutated"]!["option"]!.GetValue<string>());
     }
 
     [TestMethod]
@@ -197,7 +197,7 @@ public sealed class TradeQueryTests
         var query = builder.Build(item, builder.CreateDefaultFilters(item, Stats(), options), options)["query"]!;
         Assert.AreEqual("Zahndethus' Cassock", query["name"]!.GetValue<string>());
         Assert.AreEqual("Sage's Robe", query["type"]!.GetValue<string>());
-        Assert.AreEqual("true", query["filters"]!["misc_filters"]!["filters"]!["foulborn_item"]!["option"]!.GetValue<string>());
+        Assert.AreEqual("true", query["filters"]!["misc_filters"]!["filters"]!["mutated"]!["option"]!.GetValue<string>());
     }
 
     [TestMethod]
@@ -209,7 +209,7 @@ public sealed class TradeQueryTests
         var builder = new TradeQueryBuilder();
         var options = new TradeQueryOptions(Games.Poe1.FilterLayout);
         var query = builder.Build(item, builder.CreateDefaultFilters(item, Stats(), options), options)["query"]!;
-        Assert.AreEqual("false", query["filters"]!["misc_filters"]!["filters"]!["foulborn_item"]!["option"]!.GetValue<string>());
+        Assert.AreEqual("false", query["filters"]!["misc_filters"]!["filters"]!["mutated"]!["option"]!.GetValue<string>());
     }
 
     private const string GreenDreamManaStat = "explicit.stat_1535088208";
@@ -357,6 +357,62 @@ public sealed class TradeQueryTests
         Assert.IsTrue(listings[0].Online);
         Assert.IsFalse(listings[1].Online);
         Assert.AreEqual("Doom Circle, Gold Ring · ilvl 82", listings[0].ItemSummary);
+    }
+
+    [TestMethod]
+    public void GemQueryHasGemLevelAndQualityFilters()
+    {
+        var item = Fixture.Parse("poe1/war-banner-gem.txt", GameId.Poe1);
+        var builder = new TradeQueryBuilder();
+        var options = new TradeQueryOptions(Games.Poe1.FilterLayout);
+        var filters = builder.CreateDefaultFilters(item, Stats(), options);
+
+        var level = filters.Single(f => f.Kind == FilterKind.GemLevel);
+        Assert.IsTrue(level.Enabled);
+        Assert.AreEqual(12d, level.Min);
+        var quality = filters.Single(f => f.Kind == FilterKind.Quality);
+        Assert.IsTrue(quality.Enabled);
+        Assert.AreEqual(17d, quality.Min);
+
+        var misc = builder.Build(item, filters, options)["query"]!["filters"]!["misc_filters"]!["filters"]!;
+        Assert.AreEqual(12d, misc["gem_level"]!["min"]!.GetValue<double>());
+        Assert.AreEqual(17d, misc["quality"]!["min"]!.GetValue<double>());
+    }
+
+    [TestMethod]
+    public void ZeroQualityGemStillOffersQualityFilterDisabled()
+    {
+        var item = Fixture.Parse("poe1/war-banner-gem-level1.txt", GameId.Poe1);
+        var builder = new TradeQueryBuilder();
+        var options = new TradeQueryOptions(Games.Poe1.FilterLayout);
+        var filters = builder.CreateDefaultFilters(item, Stats(), options);
+
+        Assert.AreEqual(1d, filters.Single(f => f.Kind == FilterKind.GemLevel).Min);
+        var quality = filters.Single(f => f.Kind == FilterKind.Quality);
+        Assert.IsFalse(quality.Enabled, "0% quality must not narrow the search until the user asks for it");
+        Assert.AreEqual(0d, quality.Min);
+
+        var misc = builder.Build(item, filters, options)["query"]!["filters"]!["misc_filters"]!["filters"]!;
+        Assert.IsNull(misc["quality"]);
+        Assert.AreEqual(1d, misc["gem_level"]!["min"]!.GetValue<double>());
+    }
+
+    [TestMethod]
+    public void GemListingSummaryShowsLevelAndQualityInsteadOfItemLevel()
+    {
+        const string json = """
+            {"result":[
+              {"id":"g1","listing":{"account":{"name":"A#1"},"price":{"amount":1,"currency":"chaos"}},"item":{"typeLine":"War Banner","ilvl":0,"frameType":4,
+                "properties":[{"name":"Aura, Banner, Spell","values":[]},{"name":"Level","values":[["20 (Max)",0]]},{"name":"Quality","values":[["+20%",1]]}]}},
+              {"id":"g2","listing":{"account":{"name":"B#1"},"price":{"amount":1,"currency":"chaos"}},"item":{"typeLine":"War Banner","ilvl":0,"frameType":4,
+                "properties":[{"name":"Level","values":[["1",0]]}]}}
+            ]}
+            """;
+        using var doc = JsonDocument.Parse(json);
+        var listings = OfficialTradeClient.ParseFetch(doc.RootElement);
+
+        Assert.AreEqual("War Banner · lvl 20 · 20%", listings[0].ItemSummary);
+        Assert.AreEqual("War Banner · lvl 1", listings[1].ItemSummary);
     }
 
     [TestMethod]

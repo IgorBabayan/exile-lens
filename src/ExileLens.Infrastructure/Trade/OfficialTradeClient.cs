@@ -161,8 +161,10 @@ public sealed class OfficialTradeClient(HttpClient http, RateLimiter limiter, IL
                 var name = item.TryGetProperty("name", out var nm) ? nm.GetString() : null;
                 type = item.TryGetProperty("typeLine", out var tl) ? tl.GetString() : null;
                 icon = item.TryGetProperty("icon", out var ic) && ic.ValueKind == JsonValueKind.String ? ic.GetString() : null;
-                var ilvl = item.TryGetProperty("ilvl", out var il) && il.TryGetInt32(out var lvl) ? $" · ilvl {lvl}" : string.Empty;
-                summary = string.IsNullOrEmpty(name) ? $"{type}{ilvl}" : $"{name}, {type}{ilvl}";
+                var details = IsGem(item)
+                    ? GemDetails(item)
+                    : item.TryGetProperty("ilvl", out var il) && il.TryGetInt32(out var lvl) ? $" · ilvl {lvl}" : string.Empty;
+                summary = string.IsNullOrEmpty(name) ? $"{type}{details}" : $"{name}, {type}{details}";
             }
 
             var id = entry.TryGetProperty("id", out var idEl) ? idEl.GetString() ?? string.Empty : string.Empty;
@@ -170,6 +172,79 @@ public sealed class OfficialTradeClient(HttpClient http, RateLimiter limiter, IL
         }
 
         return list;
+    }
+
+    /// <summary>Trade API frame type of skill and support gems (their "ilvl" is always 0 and meaningless).</summary>
+    private const int GemFrameType = 4;
+
+    private static bool IsGem(JsonElement item) =>
+        item.TryGetProperty("frameType", out var ft) && ft.TryGetInt32(out var frame) && frame == GemFrameType;
+
+    /// <summary>" · lvl 20 · 20%" from the gem's "Level" / "Quality" properties (single pass, stops once both are found).</summary>
+    internal static string GemDetails(JsonElement item)
+    {
+        if (!item.TryGetProperty("properties", out var props) || props.ValueKind != JsonValueKind.Array)
+        {
+            return string.Empty;
+        }
+
+        string? level = null, quality = null;
+        foreach (var prop in props.EnumerateArray())
+        {
+            if (!prop.TryGetProperty("name", out var n) || n.ValueKind != JsonValueKind.String)
+            {
+                continue;
+            }
+
+            if (level is null && n.ValueEquals("Level"))
+            {
+                level = FirstValue(prop);
+            }
+            else if (quality is null && n.ValueEquals("Quality"))
+            {
+                quality = FirstValue(prop);
+            }
+
+            if (level is not null && quality is not null)
+            {
+                break;
+            }
+        }
+
+        level = LeadingNumber(level);
+        quality = LeadingNumber(quality);
+        return (level, quality) switch
+        {
+            (not null, not null) => $" · lvl {level} · {quality}%",
+            (not null, null) => $" · lvl {level}",
+            (null, not null) => $" · {quality}%",
+            _ => string.Empty,
+        };
+    }
+
+    /// <summary>First display value of a trade property: values = [["20 (Max)", 0]].</summary>
+    private static string? FirstValue(JsonElement prop) =>
+        prop.TryGetProperty("values", out var values) && values.ValueKind == JsonValueKind.Array && values.GetArrayLength() > 0
+        && values[0].ValueKind == JsonValueKind.Array && values[0].GetArrayLength() > 0 && values[0][0].ValueKind == JsonValueKind.String
+            ? values[0][0].GetString()
+            : null;
+
+    /// <summary>"+20%" → "20", "20 (Max)" → "20"; null when there is no number.</summary>
+    private static string? LeadingNumber(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return null;
+        }
+
+        var span = value.AsSpan().TrimStart().TrimStart('+');
+        var end = 0;
+        while (end < span.Length && char.IsAsciiDigit(span[end]))
+        {
+            end++;
+        }
+
+        return end == 0 ? null : span[..end].ToString();
     }
 }
 

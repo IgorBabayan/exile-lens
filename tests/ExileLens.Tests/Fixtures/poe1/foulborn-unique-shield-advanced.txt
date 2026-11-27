@@ -22,11 +22,11 @@ Item Level: 84
 { Unique Modifier — Chaos, Resistance }
 +17(17-23)% to Chaos Resistance
 { Unique Modifier }
-Chaos Damage taken does not bypass Energy Shield while not on Low Life
+Chaos Damage taken does not bypass Energy Shield while not on Low Life — Unscalable Value
 { Unique Modifier — Elemental, Lightning, Ailment }
-Reflect Shocks applied to you to all Enemies within 3 metres
+Reflect Shocks applied to you to all Enemies within 3 metres — Unscalable Value
 { Foulborn Unique Modifier }
-Damage cannot be Reflected
+Damage cannot be Reflected — Unscalable Value
 --------
 She could see what she was not;
 a silhouette wreathed in light.

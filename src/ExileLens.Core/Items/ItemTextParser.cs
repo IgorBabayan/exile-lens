@@ -181,13 +181,21 @@ public sealed class ItemTextParser : IItemParser
                 }
             }
 
-            if (isPropertySection)
+            // Gem property blocks open with a tag line ("Aura, Banner, Spell, AoE, Duration") and may carry free-text
+            // lines between "Key: value" pairs; the first block before any modifiers is still the property block.
+            var lenientGemSection = !isPropertySection && rarity == ItemRarity.Gem && modifierSectionCount == 0 && HasPropertyLine(section);
+            if (isPropertySection || lenientGemSection)
             {
                 foreach (var line in section)
                 {
                     if (line == "Requirements:")
                     {
                         inRequirements = true;
+                        continue;
+                    }
+
+                    if (lenientGemSection && !LooksLikeProperty(line))
+                    {
                         continue;
                     }
 
@@ -491,6 +499,19 @@ public sealed class ItemTextParser : IItemParser
         foreach (var prefix in DescriptionPrefixes)
         {
             if (section[0].StartsWith(prefix, StringComparison.Ordinal) && !section[0].StartsWith("Stack Size:", StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool HasPropertyLine(List<string> section)
+    {
+        foreach (var line in section)
+        {
+            if (LooksLikeProperty(line))
             {
                 return true;
             }

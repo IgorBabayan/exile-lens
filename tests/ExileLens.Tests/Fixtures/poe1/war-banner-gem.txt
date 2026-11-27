@@ -1,0 +1,27 @@
+Item Class: Skill Gems
+Rarity: Gem
+War Banner
+--------
+Aura, Banner, Spell, AoE, Duration
+Level: 12
+Cost: 10 Mana
+Reservation: 10% Mana
+Cooldown Time: 1.00 sec
+Cast Time: Instant
+Quality: +17% (augmented)
+--------
+Requirements:
+Level: 52
+Str: 79
+Int: 54
+--------
+Places a banner that grants an aura to you and nearby allies, increasing accuracy and attack damage.
+--------
+Nearby Allies gain 16% increased Accuracy Rating
+Nearby Allies deal 12% increased Attack Physical Damage
+--------
+Experience: 1/1066254
+--------
+Place into an item socket of the right colour to gain this skill. Right click to remove from a socket.
+--------
+Corrupted
