@@ -288,4 +288,26 @@ public sealed class TradeQueryTests
         Assert.AreEqual(3, stats.Count);
         Assert.AreEqual("explicit.stat_2", stats[2].Id);
     }
+
+    [TestMethod]
+    public void StaticDataYieldsCurrencyIconUrls()
+    {
+        const string json = """{"result":[{"id":"Currency","label":"Currency","entries":[{"id":"chaos","text":"Chaos Orb","image":"/gen/image/abc/Chaos.png"},{"id":"divine","text":"Divine Orb","image":"https://web.poecdn.com/gen/image/def/Divine.png"},{"id":"noimage","text":"No image"}]},{"id":"Fragments","entries":[{"id":"frag","image":"/x.png"}]}]}""";
+        using var doc = JsonDocument.Parse(json);
+        var icons = TradeDataProvider.ParseCurrencyIcons(doc.RootElement);
+        Assert.AreEqual(2, icons.Count);
+        Assert.AreEqual("https://web.poecdn.com/gen/image/abc/Chaos.png", icons["chaos"]);
+        Assert.AreEqual("https://web.poecdn.com/gen/image/def/Divine.png", icons["DIVINE"]);
+    }
+
+    [TestMethod]
+    public void EveryPriceCurrencyExceptAnyHasAnIcon()
+    {
+        foreach (var currency in TradePriceCurrencies.All)
+        {
+            Assert.AreEqual(currency.Key != TradePriceCurrencies.AnyKey, currency.IconIds.Length > 0, currency.Key);
+        }
+
+        CollectionAssert.AreEqual(new[] { "chaos", "divine" }, TradePriceCurrencies.Find("chaos_divine").IconIds);
+    }
 }

@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using ExileLens.App.Services;
 using ExileLens.Application.Capture;
 using ExileLens.Application.Chat;
 using ExileLens.Application.Games;
@@ -23,18 +25,49 @@ public sealed record PlacementOption(OverlayPlacement Value, string Label);
 
 public sealed record ListingStatusOption(TradeListingStatus Value, string Label);
 
+/// <summary>Drop-down row for a trade buyout currency; icons arrive asynchronously after the page is first shown.</summary>
+public sealed partial class PriceCurrencyOption(TradePriceCurrency currency) : ObservableObject
+{
+    public TradePriceCurrency Currency { get; } = currency;
+
+    public string Label => Currency.Label;
+
+    [ObservableProperty]
+    private Bitmap? _icon;
+
+    [ObservableProperty]
+    private Bitmap? _secondIcon;
+}
+
 public sealed partial class SettingsViewModel : PageViewModel
 {
     private readonly ISettingsService _settings;
     private readonly IAutoStartService _autoStart;
     private readonly IUpdateService _updates;
+    private readonly ITradeDataProvider _tradeData;
+    private readonly ItemIconLoader _icons;
+    private readonly IGameModule _iconGame;
     private UpdateInfo? _update;
+    private bool _currencyIconsRequested;
 
-    public SettingsViewModel(ISettingsService settings, IGameRegistry games, ILeagueService leagues, IAutoStartService autoStart, IUpdateService updates)
+    public SettingsViewModel(
+        ISettingsService settings,
+        IGameRegistry games,
+        ILeagueService leagues,
+        IAutoStartService autoStart,
+        IUpdateService updates,
+        ITradeDataProvider tradeData,
+        ItemIconLoader icons)
     {
         _settings = settings;
         _autoStart = autoStart;
         _updates = updates;
+        _tradeData = tradeData;
+        _icons = icons;
+
+        // The currency list mirrors the PoE 1 trade site, so its art comes from the PoE 1 static data.
+        _iconGame = games.Get(GameId.Poe1);
+        PriceCurrencies = TradePriceCurrencies.All.Select(c => new PriceCurrencyOption(c)).ToArray();
         GameOptions = games.All.Select(g => new GameOption(g.Game, g.DisplayName)).ToList();
         _shortcutGame = GameOptions.FirstOrDefault(o => o.Game == GameId.Poe1) ?? GameOptions[0];
         LeagueSelectors = games.All.Select(g => new LeagueSelectorViewModel(g, settings, leagues)).ToList();
@@ -298,17 +331,84 @@ public sealed partial class SettingsViewModel : PageViewModel
         }
     }
 
-    public IReadOnlyList<TradePriceCurrency> PriceCurrencies => TradePriceCurrencies.All;
+    public IReadOnlyList<PriceCurrencyOption> PriceCurrencies { get; }
 
-    public TradePriceCurrency PreferredCurrency
+    public PriceCurrencyOption PreferredCurrency
     {
-        get => TradePriceCurrencies.Find(_settings.Current.Trade.PriceCurrency);
+        get
+        {
+            var selected = TradePriceCurrencies.Find(_settings.Current.Trade.PriceCurrency);
+            foreach (var option in PriceCurrencies)
+            {
+                if (ReferenceEquals(option.Currency, selected))
+                {
+                    return option;
+                }
+            }
+
+            return PriceCurrencies[0];
+        }
         set
         {
             if (value is not null)
             {
-                Set(s => s.Trade.PriceCurrency = value.Key);
+                Set(s => s.Trade.PriceCurrency = value.Currency.Key);
             }
+        }
+    }
+
+    /// <summary>
+    /// Fetches the id → URL map once (disk cached for a week), then decodes each icon off the UI thread through the
+    /// shared icon cache; repeated ids (chaos) share one download and one bitmap.
+    /// </summary>
+    private async Task LoadCurrencyIconsAsync()
+    {
+        IReadOnlyDictionary<string, string> urls;
+        try
+        {
+            urls = await _tradeData.GetCurrencyIconsAsync(_iconGame, CancellationToken.None);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or IOException)
+        {
+            urls = new Dictionary<string, string>();
+        }
+
+        if (urls.Count == 0)
+        {
+            _currencyIconsRequested = false; // retry the next time the page is opened
+            return;
+        }
+
+        var loads = new List<Task>(PriceCurrencies.Count);
+        foreach (var option in PriceCurrencies)
+        {
+            var ids = option.Currency.IconIds;
+            if (ids.Length > 0 && urls.TryGetValue(ids[0], out var first))
+            {
+                loads.Add(SetIconAsync(first, b => option.Icon = b));
+            }
+
+            if (ids.Length > 1 && urls.TryGetValue(ids[1], out var second))
+            {
+                loads.Add(SetIconAsync(second, b => option.SecondIcon = b));
+            }
+        }
+
+        await Task.WhenAll(loads);
+    }
+
+    private async Task SetIconAsync(string url, Action<Bitmap> apply)
+    {
+        if (_icons.TryGetCached(url) is { } cached)
+        {
+            apply(cached);
+            return;
+        }
+
+        // Resumes on the UI thread, where the bound property is set.
+        if (await _icons.LoadAsync(url, CancellationToken.None) is { } bitmap)
+        {
+            apply(bitmap);
         }
     }
 
@@ -453,6 +553,12 @@ public sealed partial class SettingsViewModel : PageViewModel
 
     public override void OnActivated()
     {
+        if (!_currencyIconsRequested)
+        {
+            _currencyIconsRequested = true;
+            _ = LoadCurrencyIconsAsync();
+        }
+
         // Cheap when cached: the shared list is reused and the pickers are rebuilt only if it changed.
         foreach (var selector in LeagueSelectors)
         {

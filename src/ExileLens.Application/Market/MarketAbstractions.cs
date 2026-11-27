@@ -42,6 +42,12 @@ public interface ITradeDataProvider
 {
     Task<IReadOnlyList<LeagueInfo>> GetLeaguesAsync(IGameModule game, CancellationToken cancellationToken);
     Task<StatIndex?> GetStatIndexAsync(IGameModule game, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Trade static-data currency id (e.g. "chaos") to absolute icon URL. Empty when unavailable; never throws for network errors.
+    /// </summary>
+    Task<IReadOnlyDictionary<string, string>> GetCurrencyIconsAsync(IGameModule game, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyDictionary<string, string>>(new Dictionary<string, string>());
 }
 
 public interface IMarketDataProvider

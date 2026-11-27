@@ -36,8 +36,9 @@ public static class TradeListingStatuses
 /// <summary>
 /// A buyout-currency option of the trade site's price filter. <see cref="Poe1Id"/> / <see cref="Poe2Id"/> are the
 /// trade API option ids; null means the game has no such option and the search is not restricted.
+/// <see cref="IconIds"/> are trade static-data ids ("Currency" group) whose art is shown next to the label.
 /// </summary>
-public sealed record TradePriceCurrency(string Key, string Label, string? Poe1Id, string? Poe2Id)
+public sealed record TradePriceCurrency(string Key, string Label, string? Poe1Id, string? Poe2Id, params string[] IconIds)
 {
     public string? ApiId(GameId game) => game == GameId.Poe1 ? Poe1Id : Poe2Id;
 }
@@ -53,24 +54,24 @@ public static class TradePriceCurrencies
     [
         Any,
         // The trade site's default ordering already compares prices in chaos: no option is sent.
-        new("chaos_equivalent", "Chaos Orb Equivalent", null, null),
-        new("chaos_divine", "Chaos or Divine Orbs", "chaos_divine", null),
-        new("chaos", "Chaos Orb", "chaos", "chaos"),
-        new("exalted", "Exalted Orb", "exalted", "exalted"),
-        new("divine", "Divine Orb", "divine", "divine"),
-        new("mirror", "Mirror of Kalandra", "mirror", null),
-        new("blessed", "Blessed Orb", "blessed", null),
-        new("chrome", "Chromatic Orb", "chrome", null),
-        new("gcp", "Gemcutter's Prism", "gcp", null),
-        new("jewellers", "Jeweller's Orb", "jewellers", null),
-        new("scour", "Orb of Scouring", "scour", null),
-        new("regret", "Orb of Regret", "regret", null),
-        new("fusing", "Orb of Fusing", "fusing", null),
-        new("chance", "Orb of Chance", "chance", null),
-        new("alt", "Orb of Alteration", "alt", null),
-        new("alch", "Orb of Alchemy", "alch", null),
-        new("regal", "Regal Orb", "regal", null),
-        new("vaal", "Vaal Orb", "vaal", null),
+        new("chaos_equivalent", "Chaos Orb Equivalent", null, null, "chaos"),
+        new("chaos_divine", "Chaos or Divine Orbs", "chaos_divine", null, "chaos", "divine"),
+        new("chaos", "Chaos Orb", "chaos", "chaos", "chaos"),
+        new("exalted", "Exalted Orb", "exalted", "exalted", "exalted"),
+        new("divine", "Divine Orb", "divine", "divine", "divine"),
+        new("mirror", "Mirror of Kalandra", "mirror", null, "mirror"),
+        new("blessed", "Blessed Orb", "blessed", null, "blessed"),
+        new("chrome", "Chromatic Orb", "chrome", null, "chrome"),
+        new("gcp", "Gemcutter's Prism", "gcp", null, "gcp"),
+        new("jewellers", "Jeweller's Orb", "jewellers", null, "jewellers"),
+        new("scour", "Orb of Scouring", "scour", null, "scour"),
+        new("regret", "Orb of Regret", "regret", null, "regret"),
+        new("fusing", "Orb of Fusing", "fusing", null, "fusing"),
+        new("chance", "Orb of Chance", "chance", null, "chance"),
+        new("alt", "Orb of Alteration", "alt", null, "alt"),
+        new("alch", "Orb of Alchemy", "alch", null, "alch"),
+        new("regal", "Regal Orb", "regal", null, "regal"),
+        new("vaal", "Vaal Orb", "vaal", null, "vaal"),
     ];
 
     private static readonly Dictionary<string, TradePriceCurrency> ByKey = All.ToDictionary(c => c.Key, StringComparer.OrdinalIgnoreCase);

@@ -2,7 +2,6 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:ExileLens.App.ViewModels"
              xmlns:conv="using:ExileLens.App.Views"
-             xmlns:trade="using:ExileLens.Core.Trade"
              x:Class="ExileLens.App.Views.SettingsView"
              x:DataType="vm:SettingsViewModel">
   <UserControl.Styles>
@@ -236,7 +235,15 @@
             <TextBlock Classes="label" Text="Preferred currency" />
             <ComboBox ItemsSource="{Binding PriceCurrencies}" SelectedItem="{Binding PreferredCurrency}" Width="260" MaxDropDownHeight="360">
               <ComboBox.ItemTemplate>
-                <DataTemplate x:DataType="trade:TradePriceCurrency"><TextBlock Text="{Binding Label}" /></DataTemplate>
+                <DataTemplate x:DataType="vm:PriceCurrencyOption">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <StackPanel Orientation="Horizontal" Width="40" VerticalAlignment="Center">
+                      <Image Source="{Binding Icon}" Width="20" Height="20" RenderOptions.BitmapInterpolationMode="HighQuality" />
+                      <Image Source="{Binding SecondIcon}" Width="20" Height="20" RenderOptions.BitmapInterpolationMode="HighQuality" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+                  </StackPanel>
+                </DataTemplate>
               </ComboBox.ItemTemplate>
             </ComboBox>
           </StackPanel>
