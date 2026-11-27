@@ -6,6 +6,8 @@
         Title="Exile Lens"
         Width="1100" Height="740" MinWidth="820" MinHeight="560"
         WindowStartupLocation="CenterScreen"
+        CanMaximize="False"
+        CanResize="False"
         Background="{DynamicResource AppBackgroundBrush}">
   <Grid ColumnDefinitions="Auto,*">
     <!-- Sidebar -->
