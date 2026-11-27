@@ -1,0 +1,31 @@
+Item Class: Body Armours
+Rarity: Rare
+Grim Shell
+Full Plate
+--------
+Quality: +12% (augmented)
+Armour: 612 (augmented)
+--------
+Requires: Level 65, 121 Str
+--------
+Sockets: S S
+--------
+Item Level: 81
+--------
++10% to Fire Resistance (rune)
+--------
+{ Prefix Modifier "Fortified" (Tier: 3) — Defences, Armour }
+42(39-49)% increased Armour
++12(10-14) to Stun Threshold
+{ Prefix Modifier "Virile" (Tier: 4) — Life }
++71(70-84) to maximum Life
+{ Suffix Modifier "of the Fox" (Tier: 6) — Attribute }
++18(17-20) to Dexterity
+{ Suffix Modifier "of Haste" (Tier: 5) — Speed }
+5(4-6)% reduced Movement Speed Penalty from Equipped Armour
+{ Desecrated Suffix Modifier "of the Abyss" (Tier: 1) — Life }
+3(2-4) Life Regeneration per second (desecrated)
+{ Prefix Modifier "Robust" (Tier: 7) — Life }
++30(25-34) to maximum Life
+--------
+Corrupted

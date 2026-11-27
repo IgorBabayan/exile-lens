@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "game": "Poe1",
+  "rulesVersion": "3.19+ (re-verified 2026-11)",
+  "sources": [
+    "https://poedb.tw/us/VendorRecipes (Sockets recipes)",
+    "https://maxroll.gg/poe/resources/vendor-recipes (3.19: 6-link → 20 Orbs of Fusing)"
+  ],
+  "disenchant": [],
+  "vendor": [
+    {
+      "id": "six-link",
+      "description": "Six linked sockets (outranks the six-socket recipe).",
+      "when": { "minLinks": 6 },
+      "rewards": [ { "currency": "Orb of Fusing", "quantity": 20 } ]
+    },
+    {
+      "id": "six-socket",
+      "description": "Six sockets.",
+      "when": { "minSockets": 6 },
+      "rewards": [ { "currency": "Jeweller's Orb", "quantity": 7 } ]
+    },
+    {
+      "id": "linked-rgb",
+      "description": "Linked red, green and blue sockets.",
+      "when": { "linkedRgb": true },
+      "rewards": [ { "currency": "Chromatic Orb", "quantity": 1 } ]
+    },
+    {
+      "id": "gem-20-quality",
+      "description": "A gem with 20% quality.",
+      "when": { "categories": [ "Gem" ], "minQuality": 20 },
+      "rewards": [ { "currency": "Gemcutter's Prism", "quantity": 1 } ]
+    }
+  ],
+  "units": []
+}

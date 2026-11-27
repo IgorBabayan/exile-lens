@@ -1,0 +1,16 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ExileLens.App.ViewModels"
+             x:Class="ExileLens.App.Views.NoticeOverlayView"
+             x:DataType="vm:NoticeOverlayViewModel">
+  <Grid ColumnDefinitions="Auto,*,Auto">
+    <Path Classes="icon" Data="{StaticResource IconInfo}" Stroke="{DynamicResource AccentBrush}" VerticalAlignment="Top" Margin="0,2,0,0" />
+    <StackPanel Grid.Column="1" Margin="10,0" Spacing="2">
+      <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+      <TextBlock Text="{Binding Message}" Classes="secondary" TextWrapping="Wrap" />
+    </StackPanel>
+    <Button Grid.Column="2" Classes="icon" Command="{Binding CloseCommand}" VerticalAlignment="Top">
+      <Path Classes="icon" Width="13" Height="13" Data="{StaticResource IconClose}" />
+    </Button>
+  </Grid>
+</UserControl>

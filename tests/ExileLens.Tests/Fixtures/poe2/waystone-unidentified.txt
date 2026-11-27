@@ -1,0 +1,11 @@
+Item Class: Waystones
+Rarity: Rare
+Waystone (Tier 12)
+--------
+Waystone Tier: 12
+--------
+Item Level: 75
+--------
+Unidentified
+--------
+Can be used in a Map Device, allowing you to enter a Map. Waystones can only be used once.

@@ -1,0 +1,97 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ExileLens.App.ViewModels"
+             x:Class="ExileLens.App.Views.MapOverlayView"
+             x:DataType="vm:MapOverlayViewModel">
+  <StackPanel>
+    <!-- Header -->
+    <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,0,0,12">
+      <Path Grid.Column="0" Classes="icon" Data="{StaticResource IconMap}" Stroke="{DynamicResource AccentBrush}" />
+      <TextBlock Grid.Column="1" Text="Map analysis" Margin="10,0,0,0" FontSize="14" VerticalAlignment="Center" />
+      <ToggleButton Grid.Column="2" Classes="icon" IsChecked="{Binding IsPinned}" ToolTip.Tip="Pin overlay">
+        <Path Classes="icon" Width="14" Height="14" Data="{StaticResource IconPin}" />
+      </ToggleButton>
+      <Button Grid.Column="3" Classes="icon" Command="{Binding CloseCommand}" ToolTip.Tip="Close (Esc)">
+        <Path Classes="icon" Width="13" Height="13" Data="{StaticResource IconClose}" />
+      </Button>
+    </Grid>
+    <Border Classes="divider" Margin="0,0,0,14" />
+
+    <!-- Map identity + overall badge -->
+    <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,12">
+      <Border Width="46" Height="46" CornerRadius="10" Background="{DynamicResource SurfaceAltBrush}"
+              BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+        <TextBlock Text="{Binding Initial}" FontWeight="SemiBold" FontSize="15" Foreground="{DynamicResource RarityRareBrush}"
+                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+      </Border>
+      <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Spacing="2">
+        <TextBlock Text="{Binding Title}" FontSize="17" FontWeight="SemiBold" Foreground="{DynamicResource RarityRareBrush}" TextTrimming="CharacterEllipsis" />
+        <TextBlock Text="{Binding Subtitle}" Classes="secondary" />
+      </StackPanel>
+      <Border Grid.Column="2" Classes="badge" Background="{Binding OverallSoftBrush}" VerticalAlignment="Top">
+        <TextBlock Text="{Binding OverallLabel}" Foreground="{Binding OverallBrush}" FontSize="12" FontWeight="Medium" />
+      </Border>
+    </Grid>
+
+    <TextBlock Text="{Binding Bonuses}" Classes="caption" Margin="0,0,0,10" IsVisible="{Binding HasBonuses}" />
+
+    <!-- Counters -->
+    <ItemsControl ItemsSource="{Binding Tiles}" Margin="0,0,0,10">
+      <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate>
+          <UniformGrid Rows="1" />
+        </ItemsPanelTemplate>
+      </ItemsControl.ItemsPanel>
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:StatTile">
+          <Border Classes="card" Margin="3,0" Padding="8,10">
+            <StackPanel HorizontalAlignment="Center" Spacing="2">
+              <TextBlock Text="{Binding Count}" Foreground="{Binding Brush}" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" />
+              <TextBlock Text="{Binding Label}" Classes="secondary" HorizontalAlignment="Center" />
+            </StackPanel>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+
+    <TextBlock Text="{Binding Note}" Classes="secondary" TextWrapping="Wrap" Margin="0,0,0,8" IsVisible="{Binding HasNote}" />
+
+    <!-- Modifiers: click a row to cycle its classification -->
+    <ItemsControl ItemsSource="{Binding Modifiers}">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:MapModifierRowViewModel">
+          <Button Classes="ghost" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0" Margin="0,3"
+                  Command="{Binding CycleCommand}" ToolTip.Tip="{Binding Tooltip}">
+            <Border Classes="card" Padding="14,11">
+              <StackPanel Spacing="2">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <Path Classes="icon" Width="14" Height="14" Data="{Binding Icon}" Stroke="{Binding Brush}" />
+                  <TextBlock Text="{Binding Text}" Foreground="{Binding Brush}" TextWrapping="Wrap" MaxWidth="350" />
+                </StackPanel>
+                <TextBlock Text="{Binding Note}" Classes="caption" Margin="24,0,0,0" IsVisible="{Binding HasNote}" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+          </Button>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+
+    <StackPanel IsVisible="{Binding HasCombinations}" Margin="0,8,0,0" Spacing="4">
+      <TextBlock Text="Dangerous combinations" Classes="secondary" />
+      <ItemsControl ItemsSource="{Binding Combinations}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="x:String">
+            <TextBlock Text="{Binding}" Foreground="{DynamicResource DangerBrush}" Margin="0,2" />
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </StackPanel>
+
+    <Border Classes="divider" Margin="0,12,0,10" />
+    <StackPanel Orientation="Horizontal" Spacing="8">
+      <Path Classes="icon" Width="14" Height="14" Data="{Binding OverallIcon}" Stroke="{Binding OverallBrush}" />
+      <TextBlock Text="{Binding Verdict}" Foreground="{Binding OverallBrush}" TextWrapping="Wrap" MaxWidth="380" />
+    </StackPanel>
+    <TextBlock Text="Esc to close · click a modifier to change its classification" Classes="caption" Margin="0,10,0,0" />
+  </StackPanel>
+</UserControl>

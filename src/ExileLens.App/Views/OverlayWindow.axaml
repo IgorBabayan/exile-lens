@@ -1,0 +1,29 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="ExileLens.App.Views.OverlayWindow"
+        Title="Exile Lens overlay"
+        SystemDecorations="None"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        CanResize="False"
+        SizeToContent="Height"
+        Width="452"
+        WindowStartupLocation="Manual"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent">
+  <LayoutTransformControl x:Name="ScaleHost">
+    <Border x:Name="Card"
+            Margin="6"
+            Padding="18,14,18,16"
+            Background="{DynamicResource OverlayBackgroundBrush}"
+            BorderBrush="{DynamicResource BorderStrongBrush}"
+            BorderThickness="1"
+            CornerRadius="{DynamicResource RadiusLarge}"
+            BoxShadow="0 8 28 0 #3A000000">
+      <ScrollViewer x:Name="Scroller" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <ContentControl x:Name="Host" />
+      </ScrollViewer>
+    </Border>
+  </LayoutTransformControl>
+</Window>

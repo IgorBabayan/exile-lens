@@ -1,0 +1,129 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ExileLens.App.ViewModels"
+             xmlns:maps="using:ExileLens.Core.Maps"
+             x:Class="ExileLens.App.Views.MapModifiersView"
+             x:DataType="vm:MapModifiersViewModel">
+  <DockPanel Margin="{DynamicResource PagePadding}">
+    <StackPanel DockPanel.Dock="Top" Spacing="12">
+      <StackPanel Spacing="4">
+        <TextBlock Text="Map Modifiers" Classes="display" />
+        <TextBlock Classes="secondary" TextWrapping="Wrap"
+                   Text="Classify each modifier for your build. Click a level to cycle Unclassified → Safe → Warning → Dangerous. Modifiers seen on your maps are added automatically." />
+      </StackPanel>
+
+      <!-- Profiles -->
+      <Border Classes="panel">
+        <StackPanel Spacing="10">
+          <WrapPanel ItemSpacing="8" LineSpacing="8">
+            <ComboBox ItemsSource="{Binding GameOptions}" SelectedItem="{Binding SelectedGame}" MinWidth="170">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:GameOption"><TextBlock Text="{Binding Name}" /></DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+            <ComboBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}" MinWidth="230">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="maps:ModifierProfile"><TextBlock Text="{Binding Name}" /></DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+            <Border Classes="badge" Background="{DynamicResource AccentSoftBrush}" VerticalAlignment="Center" IsVisible="{Binding IsActiveProfile}">
+              <TextBlock Text="Active for map checks" Foreground="{DynamicResource AccentBrush}" FontSize="12" />
+            </Border>
+            <Button Content="Use for map checks" Command="{Binding MakeActiveCommand}" IsVisible="{Binding !IsActiveProfile}" />
+          </WrapPanel>
+          <WrapPanel ItemSpacing="8" LineSpacing="8">
+            <TextBox Text="{Binding ProfileName}" Width="230" Watermark="Profile name" />
+            <Button Content="Rename" Command="{Binding RenameProfileCommand}" />
+            <Button Content="New" Command="{Binding NewProfileCommand}" />
+            <Button Content="Duplicate" Command="{Binding DuplicateProfileCommand}" />
+            <Button Content="Delete" Command="{Binding DeleteProfileCommand}" />
+            <Button Content="Import…" Command="{Binding ImportProfileCommand}" />
+            <Button Content="Export…" Command="{Binding ExportProfileCommand}" />
+          </WrapPanel>
+        </StackPanel>
+      </Border>
+
+      <!-- Filters & bulk actions -->
+      <WrapPanel ItemSpacing="8" LineSpacing="8">
+        <TextBox Text="{Binding SearchText}" Width="280" Watermark="Search modifiers" />
+        <ComboBox ItemsSource="{Binding CategoryOptions}" SelectedItem="{Binding SelectedCategory}" MinWidth="170" />
+        <ComboBox ItemsSource="{Binding LevelOptions}" SelectedItem="{Binding SelectedLevel}" MinWidth="150" />
+        <Button Content="Select all shown" Command="{Binding SelectAllVisibleCommand}" />
+        <Button Content="Safe" Command="{Binding BulkSetCommand}" CommandParameter="Safe" />
+        <Button Content="Warning" Command="{Binding BulkSetCommand}" CommandParameter="Warning" />
+        <Button Content="Dangerous" Command="{Binding BulkSetCommand}" CommandParameter="Dangerous" />
+        <Button Content="Reset" Command="{Binding BulkSetCommand}" CommandParameter="Unclassified" ToolTip.Tip="Reset selected to unclassified" />
+      </WrapPanel>
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Text="{Binding Summary}" Classes="caption" />
+        <TextBlock Grid.Column="1" Text="{Binding Status}" Classes="caption" Foreground="{DynamicResource AccentBrush}" />
+      </Grid>
+    </StackPanel>
+
+    <!-- Combinations -->
+    <Border DockPanel.Dock="Bottom" Classes="panel" Margin="0,12,0,0">
+      <StackPanel Spacing="8">
+        <TextBlock Text="Dangerous combinations" Classes="subtitle" />
+        <TextBlock Classes="caption" TextWrapping="Wrap"
+                   Text="Tick two or more modifiers above, name the combination and add it. A map containing all of them is marked dangerous." />
+        <WrapPanel ItemSpacing="8" LineSpacing="8">
+          <TextBox Text="{Binding CombinationName}" Width="240" />
+          <Button Content="Add from selected" Command="{Binding AddCombinationCommand}" />
+          <TextBlock Text="Escalate when this many warnings appear together:" Classes="secondary" VerticalAlignment="Center" Margin="12,0,0,0" />
+          <TextBox Text="{Binding EscalateText}" Width="60" Watermark="off" />
+        </WrapPanel>
+        <ItemsControl ItemsSource="{Binding Combinations}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:CombinationRowViewModel">
+              <Grid ColumnDefinitions="*,Auto" Margin="0,3">
+                <StackPanel>
+                  <TextBlock Text="{Binding Rule.Name}" FontWeight="Medium" />
+                  <TextBlock Text="{Binding Description}" Classes="caption" TextWrapping="Wrap" />
+                </StackPanel>
+                <Button Grid.Column="1" Classes="icon" ToolTip.Tip="Remove"
+                        Command="{Binding $parent[UserControl].((vm:MapModifiersViewModel)DataContext).RemoveCombinationCommand}"
+                        CommandParameter="{Binding}">
+                  <Path Classes="icon" Width="12" Height="12" Data="{StaticResource IconClose}" />
+                </Button>
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </Border>
+
+    <!-- Virtualized modifier list -->
+    <ListBox Classes="plain" ItemsSource="{Binding Visible}" Margin="0,8,0,0">
+      <ListBox.ItemTemplate>
+        <DataTemplate x:DataType="vm:ModifierEntryViewModel">
+          <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                  CornerRadius="{DynamicResource RadiusMedium}" Padding="12,8">
+            <StackPanel Spacing="8">
+              <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto">
+                <CheckBox IsChecked="{Binding IsSelected}" VerticalAlignment="Center" />
+                <Button Grid.Column="1" Classes="ghost" Command="{Binding CycleCommand}" Padding="0" Margin="4,0,12,0"
+                        ToolTip.Tip="Click to change classification">
+                  <Border Classes="badge" Background="{Binding SoftBrush}" MinWidth="96">
+                    <TextBlock Text="{Binding LevelLabel}" Foreground="{Binding Brush}" FontWeight="Medium" FontSize="12" HorizontalAlignment="Center" />
+                  </Border>
+                </Button>
+                <TextBlock Grid.Column="2" Text="{Binding Description}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                <TextBlock Grid.Column="3" Text="{Binding Category}" Classes="caption" VerticalAlignment="Center" Margin="12,0" />
+                <Button Grid.Column="4" Classes="icon" Command="{Binding ToggleExpandedCommand}" ToolTip.Tip="Thresholds and notes">
+                  <Path Classes="icon" Width="12" Height="12" Data="{StaticResource IconChevron}" />
+                </Button>
+              </Grid>
+              <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*" IsVisible="{Binding IsExpanded}" Margin="34,0,0,2">
+                <TextBlock Text="Warning at ≥" Classes="secondary" VerticalAlignment="Center" IsVisible="{Binding HasValue}" />
+                <TextBox Grid.Column="1" Text="{Binding WarnAtText}" Width="70" Margin="6,0,16,0" IsVisible="{Binding HasValue}" />
+                <TextBlock Grid.Column="2" Text="Dangerous at ≥" Classes="secondary" VerticalAlignment="Center" IsVisible="{Binding HasValue}" />
+                <TextBox Grid.Column="3" Text="{Binding DangerAtText}" Width="70" Margin="6,0,16,0" IsVisible="{Binding HasValue}" />
+                <TextBox Grid.Column="4" Text="{Binding Note}" Watermark="Notes for this build" />
+              </Grid>
+            </StackPanel>
+          </Border>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+  </DockPanel>
+</UserControl>

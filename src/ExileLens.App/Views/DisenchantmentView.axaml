@@ -1,0 +1,83 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ExileLens.App.ViewModels"
+             x:Class="ExileLens.App.Views.DisenchantmentView"
+             x:DataType="vm:DisenchantmentViewModel">
+  <ScrollViewer>
+    <StackPanel Margin="{DynamicResource PagePadding}" Spacing="16" MaxWidth="900" HorizontalAlignment="Left">
+      <StackPanel Spacing="4">
+        <TextBlock Text="Disenchantment" Classes="display" />
+        <TextBlock Classes="secondary" TextWrapping="Wrap"
+                   Text="Estimated rewards appear in every price check so you can compare selling an item with destroying it. Exile Lens never sells, salvages or disenchants anything for you." />
+      </StackPanel>
+
+      <ComboBox ItemsSource="{Binding GameOptions}" SelectedItem="{Binding SelectedGame}">
+        <ComboBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:GameOption"><TextBlock Text="{Binding Name}" /></DataTemplate>
+        </ComboBox.ItemTemplate>
+      </ComboBox>
+
+      <Border Classes="panel">
+        <StackPanel Spacing="10">
+          <TextBlock Text="{Binding RulesVersion}" Classes="subtitle" />
+          <TextBlock Text="{Binding MechanicDescription}" Classes="secondary" TextWrapping="Wrap" />
+          <ItemsControl ItemsSource="{Binding Rules}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:RuleRow">
+                <Grid ColumnDefinitions="100,*,Auto" Margin="0,5">
+                  <TextBlock Text="{Binding Kind}" Classes="caption" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="1" Text="{Binding Description}" TextWrapping="Wrap" />
+                  <TextBlock Grid.Column="2" Text="{Binding Reward}" FontWeight="Medium" Margin="16,0,0,0" TextWrapping="Wrap" MaxWidth="320" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <ItemsControl ItemsSource="{Binding Sources}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="x:String">
+                <TextBlock Text="{Binding}" Classes="caption" TextWrapping="Wrap" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+
+      <Border Classes="panel">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Shard values" Classes="subtitle" />
+          <TextBlock Text="Shards are valued at their own exchange rate when available, otherwise as a fraction of the full currency." Classes="caption" TextWrapping="Wrap" />
+          <ItemsControl ItemsSource="{Binding Units}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:UnitRow">
+                <Grid ColumnDefinitions="200,*,Auto" Margin="0,4">
+                  <TextBlock Text="{Binding Name}" />
+                  <TextBlock Grid.Column="1" Text="{Binding Detail}" Classes="secondary" />
+                  <TextBlock Grid.Column="2" Text="{Binding Value}" FontWeight="Medium" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+
+      <Border Classes="panel">
+        <StackPanel Spacing="10">
+          <TextBlock Text="Preferences" Classes="subtitle" />
+          <ToggleSwitch IsChecked="{Binding DisenchantEnabled}" OnContent="Disenchantment / vendor estimation on" OffContent="Disenchantment / vendor estimation off" />
+          <ToggleSwitch IsChecked="{Binding SalvageEnabled}" OnContent="Salvage estimation on" OffContent="Salvage estimation off" />
+          <ToggleSwitch IsChecked="{Binding ShowComparison}" OnContent="Show estimated value" OffContent="Hide estimated value" />
+          <ToggleSwitch IsChecked="{Binding ShowSuggestedAction}" OnContent="Show suggested action" OffContent="Hide suggested action" />
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <TextBlock Text="Valuation currency" VerticalAlignment="Center" Width="190" />
+            <TextBox Text="{Binding ValuationCurrency}" Width="220" Watermark="Game default (Exalted / Chaos Orb)" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <TextBlock Text="Minimum trade value" VerticalAlignment="Center" Width="190" />
+            <TextBox Text="{Binding MinimumTradeValue}" Width="100" />
+            <TextBlock Text="Below this, destroying the item is suggested when it pays more." Classes="caption" VerticalAlignment="Center" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

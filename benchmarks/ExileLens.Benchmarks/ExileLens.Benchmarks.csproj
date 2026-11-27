@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CA1822;CA1001</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ExileLens.Core\ExileLens.Core.csproj" />
+    <ProjectReference Include="..\..\src\ExileLens.Game.Poe2\ExileLens.Game.Poe2.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\tests\ExileLens.Tests\Fixtures\**\*.txt" LinkBase="Fixtures" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

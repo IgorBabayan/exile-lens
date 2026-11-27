@@ -1,0 +1,19 @@
+Item Class: Amulets
+Rarity: Unique
+Astramentis
+Onyx Amulet
+--------
+Requirements:
+Level: 20
+--------
+Item Level: 85
+--------
++13 to all Attributes (implicit)
+--------
++98 to all Attributes
+-4 Physical Damage taken from Attack Hits
+--------
+Kaom's strength. Chiyou's grace.
+Velyx's wisdom. Rigwald's ambition.
+--------
+Note: ~price 1 divine

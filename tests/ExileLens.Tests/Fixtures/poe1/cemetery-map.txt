@@ -1,0 +1,18 @@
+Item Class: Maps
+Rarity: Rare
+Dread Pass
+Cemetery Map
+--------
+Map Tier: 16
+Item Quantity: +80% (augmented)
+Item Rarity: +45% (augmented)
+Monster Pack Size: +30% (augmented)
+--------
+Item Level: 83
+--------
+Monsters reflect 18% of Physical Damage
+-12% maximum Player Resistances
+Players are Cursed with Elemental Weakness
+Monsters have 60% increased Area of Effect
+--------
+Travel to this Map by using it in a personal Map Device. Maps can only be used once.

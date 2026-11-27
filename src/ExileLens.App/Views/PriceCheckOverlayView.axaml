@@ -1,0 +1,149 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ExileLens.App.ViewModels"
+             x:Class="ExileLens.App.Views.PriceCheckOverlayView"
+             x:DataType="vm:PriceCheckOverlayViewModel">
+  <StackPanel Spacing="0">
+    <!-- Header -->
+    <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto" Margin="0,0,0,12">
+      <Path Grid.Column="0" Classes="icon" Data="{StaticResource IconSearch}" Stroke="{DynamicResource AccentBrush}" />
+      <TextBlock Grid.Column="1" Text="Price check" Margin="10,0,0,0" FontSize="14" VerticalAlignment="Center" />
+      <TextBlock Grid.Column="2" Text="{Binding GameLabel}" Classes="caption" VerticalAlignment="Center" Margin="0,0,6,0" />
+      <Button Grid.Column="3" Classes="icon" Command="{Binding RefreshCommand}" ToolTip.Tip="Refresh results">
+        <Path Classes="icon" Width="14" Height="14" Data="{StaticResource IconRefresh}" />
+      </Button>
+      <Button Grid.Column="4" Classes="icon" Command="{Binding CopyPriceCommand}" ToolTip.Tip="Copy estimated price">
+        <Path Classes="icon" Width="14" Height="14" Data="{StaticResource IconCopy}" />
+      </Button>
+      <ToggleButton Grid.Column="5" Classes="icon" IsChecked="{Binding IsPinned}" ToolTip.Tip="Pin overlay" IsVisible="{Binding ShowWindowControls}">
+        <Path Classes="icon" Width="14" Height="14" Data="{StaticResource IconPin}" />
+      </ToggleButton>
+      <Button Grid.Column="6" Classes="icon" Command="{Binding CloseCommand}" ToolTip.Tip="Close (Esc)" IsVisible="{Binding ShowWindowControls}">
+        <Path Classes="icon" Width="13" Height="13" Data="{StaticResource IconClose}" />
+      </Button>
+    </Grid>
+    <Border Classes="divider" Margin="0,0,0,14" />
+
+    <!-- Item -->
+    <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,12">
+      <Border Width="52" Height="52" CornerRadius="10" Background="{DynamicResource SurfaceAltBrush}"
+              BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+        <TextBlock Text="{Binding Initial}" Foreground="{Binding NameBrush}" FontSize="22" FontWeight="SemiBold"
+                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+      </Border>
+      <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Spacing="1">
+        <TextBlock Text="{Binding ItemName}" Foreground="{Binding NameBrush}" FontSize="17" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+        <TextBlock Text="{Binding BaseLine}" Classes="secondary" IsVisible="{Binding BaseLine, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        <TextBlock Text="{Binding MetaLine}" Classes="secondary" />
+      </StackPanel>
+    </Grid>
+
+    <!-- Estimated market value -->
+    <Border Classes="card" Padding="14,12">
+      <StackPanel Spacing="4">
+        <TextBlock Text="Estimated market value" Classes="secondary" />
+        <StackPanel IsVisible="{Binding IsLoading}" Spacing="6" Margin="0,4,0,2">
+          <Border Classes="skeleton" Width="160" Height="22" HorizontalAlignment="Left" />
+          <Border Classes="skeleton" Width="230" Height="12" HorizontalAlignment="Left" />
+        </StackPanel>
+        <StackPanel IsVisible="{Binding !IsLoading}" Spacing="3">
+          <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasPrice}">
+            <TextBlock Text="{Binding PriceMain}" FontSize="24" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding PriceCurrency}" FontSize="15" Classes="secondary" VerticalAlignment="Bottom" Margin="0,0,0,3" />
+          </StackPanel>
+          <TextBlock Text="Unavailable" FontSize="18" FontWeight="Medium" Classes="secondary" IsVisible="{Binding !HasPrice}" />
+          <TextBlock Text="{Binding PriceDetail}" Classes="secondary" TextWrapping="Wrap" />
+          <TextBlock Text="{Binding Error}" Foreground="{DynamicResource WarningBrush}" TextWrapping="Wrap"
+                     IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+          <TextBlock Text="{Binding PriceNote}" Classes="caption" TextWrapping="Wrap"
+                     IsVisible="{Binding PriceNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+
+    <!-- Modifier filters -->
+    <TextBlock Text="Item modifiers" Classes="section" IsVisible="{Binding HasStatFilters}" />
+    <ItemsControl ItemsSource="{Binding StatFilters}" IsVisible="{Binding HasStatFilters}">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:FilterItemViewModel">
+          <Grid ColumnDefinitions="*,Auto" Margin="0,2">
+            <CheckBox IsChecked="{Binding Enabled}" MinHeight="28">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <TextBlock Text="{Binding Label}" TextWrapping="Wrap" MaxWidth="290" />
+                <TextBlock Text="{Binding KindTag}" Classes="caption" VerticalAlignment="Center"
+                           IsVisible="{Binding KindTag, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+              </StackPanel>
+            </CheckBox>
+            <TextBox Grid.Column="1" Text="{Binding MinText}" Width="58" MinHeight="26" Padding="6,3" FontSize="12"
+                     Watermark="min" IsEnabled="{Binding Enabled}" ToolTip.Tip="Minimum value" />
+          </Grid>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+
+    <Expander Header="Search filters" Margin="0,8,0,0" IsVisible="{Binding HasPropertyFilters}" Padding="10,6">
+      <ItemsControl ItemsSource="{Binding PropertyFilters}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:FilterItemViewModel">
+            <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,2">
+              <CheckBox IsChecked="{Binding Enabled}" Content="{Binding Label}" />
+              <TextBox Grid.Column="1" Text="{Binding MinText}" Width="58" Padding="6,3" FontSize="12" Watermark="min"
+                       IsVisible="{Binding HasRange}" IsEnabled="{Binding Enabled}" />
+              <TextBox Grid.Column="2" Text="{Binding MaxText}" Width="58" Padding="6,3" FontSize="12" Watermark="max" Margin="6,0,0,0"
+                       IsVisible="{Binding HasMax}" IsEnabled="{Binding Enabled}" />
+            </Grid>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </Expander>
+
+    <Expander Header="Market listings" Margin="0,8,0,0" IsExpanded="{Binding ShowListings}" IsVisible="{Binding HasListings}" Padding="10,6">
+      <ItemsControl ItemsSource="{Binding Listings}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:ListingItemViewModel">
+            <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4">
+              <TextBlock Text="{Binding Price}" FontWeight="Medium" MinWidth="120" />
+              <StackPanel Grid.Column="1" Margin="8,0">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <Ellipse Width="7" Height="7" Fill="{DynamicResource SafeBrush}" IsVisible="{Binding Online}" VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding Seller}" Classes="secondary" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <TextBlock Text="{Binding Summary}" Classes="caption" TextTrimming="CharacterEllipsis" />
+              </StackPanel>
+              <TextBlock Grid.Column="2" Text="{Binding Age}" Classes="caption" />
+            </Grid>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </Expander>
+
+    <!-- Disenchantment / vendor / salvage -->
+    <StackPanel IsVisible="{Binding HasRewards}">
+      <Border Classes="divider" Margin="0,14,0,4" />
+      <TextBlock Text="{Binding RewardTitle}" Classes="section" Margin="0,6,0,8" />
+      <ItemsControl ItemsSource="{Binding RewardRows}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:KeyValueRow">
+            <Grid ColumnDefinitions="*,Auto" Margin="0,4">
+              <TextBlock Text="{Binding Label}" Classes="secondary" />
+              <TextBlock Grid.Column="1" Text="{Binding Value}" TextAlignment="Right" TextWrapping="Wrap" MaxWidth="260" />
+            </Grid>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+      <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,10,0,0"
+                  IsVisible="{Binding Recommendation, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+        <Path Classes="icon" Width="14" Height="14" Data="{StaticResource IconInfo}" Stroke="{Binding RecommendationBrush}" />
+        <TextBlock Text="{Binding Recommendation}" Foreground="{Binding RecommendationBrush}" TextWrapping="Wrap" MaxWidth="360" />
+      </StackPanel>
+    </StackPanel>
+
+    <Button Classes="accent" HorizontalAlignment="Stretch" Margin="0,16,0,0" Command="{Binding OpenTradeCommand}"
+            IsVisible="{Binding CanOpenTrade}">
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <TextBlock Text="Open in trade website" Foreground="{DynamicResource OnAccentBrush}" />
+        <Path Classes="icon" Width="13" Height="13" Data="{StaticResource IconExternal}" Stroke="{DynamicResource OnAccentBrush}" />
+      </StackPanel>
+    </Button>
+  </StackPanel>
+</UserControl>

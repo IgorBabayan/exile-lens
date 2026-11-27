@@ -1,0 +1,48 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ExileLens.App.ViewModels"
+             xmlns:views="using:ExileLens.App.Views"
+             x:Class="ExileLens.App.App"
+             Name="Exile Lens"
+             RequestedThemeVariant="Default">
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://ExileLens/Themes/Tokens.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </Application.Resources>
+
+  <Application.DataTemplates>
+    <DataTemplate DataType="vm:OverviewViewModel"><views:OverviewView /></DataTemplate>
+    <DataTemplate DataType="vm:PriceCheckPageViewModel"><views:PriceCheckPageView /></DataTemplate>
+    <DataTemplate DataType="vm:MapModifiersViewModel"><views:MapModifiersView /></DataTemplate>
+    <DataTemplate DataType="vm:DisenchantmentViewModel"><views:DisenchantmentView /></DataTemplate>
+    <DataTemplate DataType="vm:HistoryViewModel"><views:HistoryView /></DataTemplate>
+    <DataTemplate DataType="vm:SettingsViewModel"><views:SettingsView /></DataTemplate>
+    <DataTemplate DataType="vm:PriceCheckOverlayViewModel"><views:PriceCheckOverlayView /></DataTemplate>
+    <DataTemplate DataType="vm:MapOverlayViewModel"><views:MapOverlayView /></DataTemplate>
+    <DataTemplate DataType="vm:NoticeOverlayViewModel"><views:NoticeOverlayView /></DataTemplate>
+  </Application.DataTemplates>
+
+  <Application.Styles>
+    <!-- Fluent supplies control templates only; every color, radius and spacing is re-tokenized below. -->
+    <FluentTheme>
+      <FluentTheme.Palettes>
+        <ColorPaletteResources x:Key="Light" Accent="#C96442" AltHigh="#FFFFFF" AltLow="#FFFFFF" AltMedium="#FFFFFF" AltMediumHigh="#FFFFFF" AltMediumLow="#FFFFFF"
+                               BaseHigh="#2A2925" BaseLow="#E2DED2" BaseMedium="#8C887E" BaseMediumHigh="#5C5952" BaseMediumLow="#B5B1A6"
+                               ChromeAltLow="#5C5952" ChromeBlackHigh="#000000" ChromeBlackLow="#E2DED2" ChromeBlackMedium="#5C5952" ChromeBlackMediumLow="#B5B1A6"
+                               ChromeDisabledHigh="#E2DED2" ChromeDisabledLow="#B5B1A6" ChromeGray="#8C887E" ChromeHigh="#E2DED2" ChromeLow="#F5F4EE"
+                               ChromeMedium="#EEECE3" ChromeMediumLow="#F5F4EE" ChromeWhite="#FFFFFF" ListLow="#EEECE3" ListMedium="#E2DED2"
+                               RegionColor="#F5F4EE" ErrorText="#C24444" />
+        <ColorPaletteResources x:Key="Dark" Accent="#C67A60" AltHigh="#000000" AltLow="#000000" AltMedium="#000000" AltMediumHigh="#000000" AltMediumLow="#000000"
+                               BaseHigh="#ECEAE3" BaseLow="#3A3935" BaseMedium="#9C998F" BaseMediumHigh="#C4C1B8" BaseMediumLow="#6B6962"
+                               ChromeAltLow="#C4C1B8" ChromeBlackHigh="#000000" ChromeBlackLow="#C4C1B8" ChromeBlackMedium="#000000" ChromeBlackMediumLow="#000000"
+                               ChromeDisabledHigh="#3A3935" ChromeDisabledLow="#9C998F" ChromeGray="#86837A" ChromeHigh="#86837A" ChromeLow="#1F1E1C"
+                               ChromeMedium="#2F2E2B" ChromeMediumLow="#353431" ChromeWhite="#FFFFFF" ListLow="#2F2E2B" ListMedium="#3A3935"
+                               RegionColor="#262624" ErrorText="#E05A5A" />
+      </FluentTheme.Palettes>
+    </FluentTheme>
+    <StyleInclude Source="avares://ExileLens/Themes/Controls.axaml" />
+  </Application.Styles>
+</Application>

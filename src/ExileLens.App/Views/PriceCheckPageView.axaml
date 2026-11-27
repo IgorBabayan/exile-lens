@@ -1,0 +1,34 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ExileLens.App.ViewModels"
+             x:Class="ExileLens.App.Views.PriceCheckPageView"
+             x:DataType="vm:PriceCheckPageViewModel">
+  <Grid ColumnDefinitions="*,480" Margin="{DynamicResource PagePadding}">
+    <StackPanel Spacing="12" Margin="0,0,24,0">
+      <TextBlock Text="Price Check" Classes="display" />
+      <TextBlock Classes="secondary" TextWrapping="Wrap"
+                 Text="In game, hover an item and press your price check shortcut. You can also paste copied item text here." />
+      <ComboBox ItemsSource="{Binding GameOptions}" SelectedItem="{Binding SelectedGame}">
+        <ComboBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:GameOption">
+            <TextBlock Text="{Binding Name}" />
+          </DataTemplate>
+        </ComboBox.ItemTemplate>
+      </ComboBox>
+      <TextBox Text="{Binding InputText}" AcceptsReturn="True" TextWrapping="Wrap" Height="300"
+               Watermark="Item Class: Rings&#10;Rarity: Rare&#10;…" />
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <Button Classes="accent" Content="Check price" Command="{Binding CheckCommand}" />
+        <Button Content="Paste from clipboard" Command="{Binding PasteCommand}" />
+      </StackPanel>
+      <TextBlock Text="{Binding Error}" Foreground="{DynamicResource WarningBrush}" TextWrapping="Wrap"
+                 IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+    </StackPanel>
+    <Border Grid.Column="1" Classes="panel" VerticalAlignment="Top"
+            IsVisible="{Binding Result, Converter={x:Static ObjectConverters.IsNotNull}}">
+      <ScrollViewer MaxHeight="640">
+        <ContentControl Content="{Binding Result}" />
+      </ScrollViewer>
+    </Border>
+  </Grid>
+</UserControl>

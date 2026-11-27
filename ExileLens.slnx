@@ -1,0 +1,19 @@
+<Solution>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/ExileLens.Benchmarks/ExileLens.Benchmarks.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/ExileLens.App/ExileLens.App.csproj" />
+    <Project Path="src/ExileLens.Application/ExileLens.Application.csproj" />
+    <Project Path="src/ExileLens.Core/ExileLens.Core.csproj" />
+    <Project Path="src/ExileLens.Game.Poe1/ExileLens.Game.Poe1.csproj" />
+    <Project Path="src/ExileLens.Game.Poe2/ExileLens.Game.Poe2.csproj" />
+    <Project Path="src/ExileLens.Infrastructure/ExileLens.Infrastructure.csproj" />
+    <Project Path="src/ExileLens.Platform.Linux/ExileLens.Platform.Linux.csproj" />
+    <Project Path="src/ExileLens.Platform.MacOS/ExileLens.Platform.MacOS.csproj" />
+    <Project Path="src/ExileLens.Platform.Windows/ExileLens.Platform.Windows.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ExileLens.Tests/ExileLens.Tests.csproj" />
+  </Folder>
+</Solution>

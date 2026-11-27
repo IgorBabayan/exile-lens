@@ -1,0 +1,20 @@
+Item Class: Rings
+Rarity: Rare
+Doom Circle
+Gold Ring
+--------
+Requires: Level 60
+--------
+Item Level: 82
+--------
+{ Implicit Modifier — Drop }
+8(6-15)% increased Rarity of Items found (implicit)
+--------
+{ Prefix Modifier "Athlete's" (Tier: 2) — Life }
++85(80-89) to maximum Life
+{ Suffix Modifier "of the Kiln" (Tier: 3) — Elemental, Fire, Resistance }
++32(31-35)% to Fire Resistance
+{ Suffix Modifier "of the Glacier" (Tier: 4) — Elemental, Cold, Resistance }
++28(26-30)% to Cold Resistance
+{ Suffix Modifier "of the Storm" (Tier: 4) — Elemental, Lightning, Resistance }
++24(21-25)% to Lightning Resistance

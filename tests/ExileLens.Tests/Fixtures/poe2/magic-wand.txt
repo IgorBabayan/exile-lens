@@ -1,0 +1,12 @@
+Item Class: Wands
+Rarity: Magic
+Glowing Withered Wand of the Ember
+--------
+Requires: Level 9
+--------
+Item Level: 14
+--------
+Grants Skill: Level 3 Chaos Bolt
+--------
+14% increased Spell Damage
++10% to Fire Resistance
