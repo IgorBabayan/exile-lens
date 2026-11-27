@@ -31,7 +31,7 @@ public sealed partial class SettingsViewModel : PageViewModel
         _autoStart = autoStart;
         _updates = updates;
         GameOptions = games.All.Select(g => new GameOption(g.Game, g.DisplayName)).ToList();
-        _shortcutGame = GameOptions[^1];
+        _shortcutGame = GameOptions.FirstOrDefault(o => o.Game == GameId.Poe1) ?? GameOptions[0];
         LeagueSelectors = games.All.Select(g => new LeagueSelectorViewModel(g, settings, leagues)).ToList();
         CurrentVersion = updates.CurrentVersion.ToString();
     }
