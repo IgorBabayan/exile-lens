@@ -55,20 +55,29 @@
       <TextBlock Classes="caption" TextWrapping="Wrap"
                  Text="The item is unidentified, so its name is unknown. Pick the unique to price it." />
       <StackPanel IsVisible="{Binding IsLoadingUniques}" Spacing="6" Margin="0,4,0,2">
-        <Border Classes="skeleton" Height="30" />
-        <Border Classes="skeleton" Height="30" />
-        <Border Classes="skeleton" Height="30" />
+        <Border Classes="skeleton" Height="42" />
+        <Border Classes="skeleton" Height="42" />
+        <Border Classes="skeleton" Height="42" />
       </StackPanel>
       <ScrollViewer MaxHeight="380" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
                     IsVisible="{Binding !IsLoadingUniques}">
         <ItemsControl ItemsSource="{Binding UniqueChoices}" Margin="0,0,4,0">
           <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="x:String">
-              <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Margin="0,2" Padding="12,7"
+            <DataTemplate x:DataType="vm:UniqueChoiceViewModel">
+              <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Margin="0,2" Padding="8,4,12,4"
                       Command="{Binding $parent[UserControl].((vm:PriceCheckOverlayViewModel)DataContext).ChooseUniqueCommand}"
                       CommandParameter="{Binding}">
-                <TextBlock Text="{Binding}" FontWeight="Medium" TextTrimming="CharacterEllipsis"
-                           Foreground="{Binding $parent[UserControl].((vm:PriceCheckOverlayViewModel)DataContext).UniqueBrush}" />
+                <Grid ColumnDefinitions="Auto,*">
+                  <!-- Fixed slot: rows keep their layout while the art streams in. -->
+                  <Border Width="34" Height="34" CornerRadius="6" Background="{DynamicResource SurfaceAltBrush}">
+                    <Image Source="{Binding Icon}" Margin="2" Stretch="Uniform"
+                           RenderOptions.BitmapInterpolationMode="HighQuality"
+                           IsVisible="{Binding Icon, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                  </Border>
+                  <TextBlock Grid.Column="1" Text="{Binding Name}" Margin="10,0,0,0" VerticalAlignment="Center"
+                             FontWeight="Medium" TextTrimming="CharacterEllipsis"
+                             Foreground="{Binding $parent[UserControl].((vm:PriceCheckOverlayViewModel)DataContext).UniqueBrush}" />
+                </Grid>
               </Button>
             </DataTemplate>
           </ItemsControl.ItemTemplate>

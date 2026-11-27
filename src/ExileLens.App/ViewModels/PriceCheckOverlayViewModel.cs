@@ -127,6 +127,18 @@ public sealed partial class ListingItemViewModel(string amount, string currencyN
 
 public sealed record KeyValueRow(string Label, string Value);
 
+/// <summary>One unique in the "which unique is this?" picker. The art arrives after the list is shown.</summary>
+public sealed partial class UniqueChoiceViewModel(string name) : ObservableObject
+{
+    public string Name { get; } = name;
+
+    /// <summary>Art URL once known; passed on so the chosen unique's header shows the same art at once.</summary>
+    public string? IconUrl { get; set; }
+
+    [ObservableProperty]
+    private Bitmap? _icon;
+}
+
 public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOverlayContent
 {
     /// <summary>Quiet period after the last filter edit before a search is sent (avoids a request per click/keystroke).</summary>
@@ -145,6 +157,7 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
     private CancellationTokenSource? _iconCts;
     private CancellationTokenSource? _currencyIconCts;
     private CancellationTokenSource? _uniqueCts;
+    private CancellationTokenSource? _uniqueIconCts;
     private string? _iconUrl;
     private PriceCheckSession? _session;
     private bool _historyRecorded;
@@ -269,9 +282,9 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
     [ObservableProperty]
     private bool _isLoadingUniques;
 
-    /// <summary>Uniques the unidentified item may be (the cached list itself, not a copy).</summary>
+    /// <summary>Uniques the unidentified item may be, with their art as it loads.</summary>
     [ObservableProperty]
-    private IReadOnlyList<string> _uniqueChoices = [];
+    private IReadOnlyList<UniqueChoiceViewModel> _uniqueChoices = [];
 
     public IBrush UniqueBrush { get; } = DangerPalette.Rarity(ItemRarity.Unique);
 
@@ -353,7 +366,7 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
             else if (candidates.Count > 1)
             {
                 IsChoosingUnique = true;
-                UniqueChoices = candidates;
+                ShowUniqueChoices(session, candidates);
             }
 
             // No known unique on this base: search any unique of the base.
@@ -480,7 +493,7 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
                     SelectUnique(candidates[0], userChoice: false);
                     break;
                 default:
-                    UniqueChoices = candidates;
+                    ShowUniqueChoices(session, candidates);
                     break;
             }
         }
@@ -491,11 +504,81 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
     }
 
     [RelayCommand]
-    private void ChooseUnique(string? name)
+    private void ChooseUnique(UniqueChoiceViewModel? choice)
     {
-        if (name is not null && IsChoosingUnique && _session is not null)
+        if (choice is not null && IsChoosingUnique && _session is not null)
         {
-            SelectUnique(name, userChoice: true);
+            SelectUnique(choice.Name, userChoice: true, choice.IconUrl);
+        }
+    }
+
+    private void ShowUniqueChoices(PriceCheckSession session, IReadOnlyList<string> names)
+    {
+        var choices = new UniqueChoiceViewModel[names.Count];
+        for (var i = 0; i < choices.Length; i++)
+        {
+            choices[i] = new UniqueChoiceViewModel(names[i]);
+        }
+
+        UniqueChoices = choices;
+        CancelUniqueIcons();
+        _uniqueIconCts = new CancellationTokenSource();
+        _ = LoadUniqueIconsAsync(session, choices, _uniqueIconCts.Token);
+    }
+
+    /// <summary>
+    /// Fills in the picker art: decoded bitmaps already in memory are applied synchronously (no flicker), the rest load
+    /// in parallel through the shared icon cache. The list is usable meanwhile; rows without art keep an empty slot.
+    /// </summary>
+    private async Task LoadUniqueIconsAsync(PriceCheckSession session, UniqueChoiceViewModel[] choices, CancellationToken token)
+    {
+        IReadOnlyDictionary<string, string> urls;
+        try
+        {
+            urls = await _pricing.GetUniqueIconUrlsAsync(session, token);
+        }
+        catch (OperationCanceledException)
+        {
+            return; // another item was opened, a unique was picked or the overlay closed
+        }
+
+        if (token.IsCancellationRequested || urls.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var choice in choices)
+        {
+            if (!urls.TryGetValue(choice.Name, out var url))
+            {
+                continue;
+            }
+
+            choice.IconUrl = url;
+            if (_icons.TryGetCached(url) is { } cached)
+            {
+                choice.Icon = cached;
+            }
+            else
+            {
+                _ = LoadUniqueIconAsync(choice, url, token);
+            }
+        }
+    }
+
+    private async Task LoadUniqueIconAsync(UniqueChoiceViewModel choice, string url, CancellationToken token)
+    {
+        try
+        {
+            var bitmap = await _icons.LoadAsync(url, token);
+            if (!token.IsCancellationRequested && bitmap is not null)
+            {
+                choice.Icon = bitmap;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // the picker was closed; the shared download still completes and lands in the cache
         }
     }
 
@@ -515,13 +598,13 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
         _ = RunAsync();
     }
 
-    private void SelectUnique(string name, bool userChoice)
+    private void SelectUnique(string name, bool userChoice, string? iconUrl = null)
     {
         CancelUniqueLookup();
         IsLoadingUniques = false;
         UniqueChoices = [];
         IsChoosingUnique = false;
-        LoadSession(_pricing.ChooseUnique(_session!, name));
+        LoadSession(_pricing.ChooseUnique(_session!, name, iconUrl));
 
         // A pick is an explicit request to price the item; an automatic single match follows the auto-search setting.
         if (userChoice)
@@ -539,6 +622,14 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
         _uniqueCts?.Cancel();
         _uniqueCts?.Dispose();
         _uniqueCts = null;
+        CancelUniqueIcons();
+    }
+
+    private void CancelUniqueIcons()
+    {
+        _uniqueIconCts?.Cancel();
+        _uniqueIconCts?.Dispose();
+        _uniqueIconCts = null;
     }
 
     private void CancelCurrencyIcons()

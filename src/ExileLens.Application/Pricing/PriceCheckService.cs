@@ -70,7 +70,10 @@ public interface IPriceEstimationService
     Task<IReadOnlyList<string>> GetUniqueCandidatesAsync(PriceCheckSession session, CancellationToken cancellationToken);
 
     /// <summary>New session for the same item priced as the named unique (fresh default filters, same game and league).</summary>
-    PriceCheckSession ChooseUnique(PriceCheckSession session, string uniqueName);
+    PriceCheckSession ChooseUnique(PriceCheckSession session, string uniqueName, string? iconUrl = null);
+
+    /// <summary>Icon URLs of the uniques an unidentified item may be, keyed by unique name. Empty when unknown.</summary>
+    Task<IReadOnlyDictionary<string, string>> GetUniqueIconUrlsAsync(PriceCheckSession session, CancellationToken cancellationToken);
 }
 
 public sealed class PriceCheckService : IPriceEstimationService
@@ -137,8 +140,20 @@ public sealed class PriceCheckService : IPriceEstimationService
     public async Task<IReadOnlyList<string>> GetUniqueCandidatesAsync(PriceCheckSession session, CancellationToken cancellationToken) =>
         Candidates(await LoadUniquesAsync(session.Game, cancellationToken).ConfigureAwait(false), session.Item.BaseType);
 
-    public PriceCheckSession ChooseUnique(PriceCheckSession session, string uniqueName) =>
-        CreateSession(session.Item.WithName(uniqueName), session.Game, session.League);
+    public PriceCheckSession ChooseUnique(PriceCheckSession session, string uniqueName, string? iconUrl = null)
+    {
+        var chosen = CreateSession(session.Item.WithName(uniqueName), session.Game, session.League);
+        if (iconUrl is { Length: > 0 })
+        {
+            // Art already shown in the picker: the header reuses it at once and a later search does not swap it.
+            RememberIconUrl(IconKey(chosen.Game.Game, chosen.Item), iconUrl);
+        }
+
+        return chosen;
+    }
+
+    public Task<IReadOnlyDictionary<string, string>> GetUniqueIconUrlsAsync(PriceCheckSession session, CancellationToken cancellationToken) =>
+        _market.GetUniqueIconsAsync(session.Game, session.League, session.Item, cancellationToken);
 
     private static string[] Candidates(IReadOnlyDictionary<string, string[]> map, string baseType) =>
         map.TryGetValue(baseType, out var names) ? names : Array.Empty<string>();
@@ -274,15 +289,20 @@ public sealed class PriceCheckService : IPriceEstimationService
             if (l.Icon is { Length: > 0 } icon && l.TypeLine is { } type
                 && type.Contains(item.BaseType, StringComparison.OrdinalIgnoreCase))
             {
-                if (_icons.Count >= MaxRememberedIcons)
-                {
-                    _icons.Clear();
-                }
-
-                _icons[key] = icon;
+                RememberIconUrl(key, icon);
                 return;
             }
         }
+    }
+
+    private void RememberIconUrl(string key, string url)
+    {
+        if (_icons.Count >= MaxRememberedIcons)
+        {
+            _icons.Clear();
+        }
+
+        _icons[key] = url;
     }
 
     private async Task<(PriceEstimate, IReadOnlyList<MarketListing>, string?)> SearchAsync(PriceCheckSession session, JsonObject query, CurrencyRates rates, string key)

@@ -67,6 +67,13 @@ public interface IMarketDataProvider
 
     /// <summary>Icon URL for a bulk item from already-downloaded data only. Never touches the network.</summary>
     string? GetCachedIconUrl(IGameModule game, string league, string name) => null;
+
+    /// <summary>
+    /// Unique name (case-insensitive) to icon URL for the unique group the item belongs to (weapons, armours, jewels...).
+    /// Empty when unknown; never throws for network errors.
+    /// </summary>
+    Task<IReadOnlyDictionary<string, string>> GetUniqueIconsAsync(IGameModule game, string league, ParsedItem item, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyDictionary<string, string>>(new Dictionary<string, string>());
 }
 
 public interface ICurrencyConversionService

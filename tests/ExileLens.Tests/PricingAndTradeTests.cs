@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using ExileLens.Core.Economy;
 using ExileLens.Core.Items;
 using ExileLens.Core.Trade;
+using ExileLens.Infrastructure.Market;
 using ExileLens.Infrastructure.Trade;
 
 namespace ExileLens.Tests;
@@ -391,6 +392,27 @@ public sealed class TradeQueryTests
         CollectionAssert.AreEqual(new[] { "Doomfletch", "Lioneye's Glare" }, uniques["imperial bow"]);
         CollectionAssert.AreEqual(new[] { "Voltaxic Rift" }, uniques["Spine Bow"]);
         CollectionAssert.AreEqual(new[] { "Astramentis" }, uniques["Onyx Amulet"]);
+    }
+
+    [TestMethod]
+    public void UniqueIconOverviewTypeFollowsItemClass()
+    {
+        Assert.AreEqual("UniqueWeapon", PoeNinjaMarketDataProvider.UniqueOverviewType(GameId.Poe1, Fixture.Parse("poe1/unidentified-unique-bow.txt", GameId.Poe1)));
+        Assert.AreEqual("UniqueAccessory", PoeNinjaMarketDataProvider.UniqueOverviewType(GameId.Poe1, Fixture.Parse("poe1/unique-amulet.txt", GameId.Poe1)));
+        Assert.AreEqual("UniqueArmour", PoeNinjaMarketDataProvider.UniqueOverviewType(GameId.Poe1, Fixture.Parse("poe1/unique-helmet-keystone.txt", GameId.Poe1)));
+        Assert.AreEqual("UniqueArmours", PoeNinjaMarketDataProvider.UniqueOverviewType(GameId.Poe2, Fixture.Parse("poe1/unique-helmet-keystone.txt", GameId.Poe1)));
+        Assert.IsNull(PoeNinjaMarketDataProvider.UniqueOverviewType(GameId.Poe2, Fixture.Parse("poe2/exalted-orb.txt", GameId.Poe2)));
+    }
+
+    [TestMethod]
+    public void UniqueOverviewYieldsIconPerName()
+    {
+        const string json = """{"lines":[{"name":"Xoph's Inception","icon":"https://web.poecdn.com/gen/image/a/Bow.png","variant":null},{"name":"Xoph's Inception","icon":"https://web.poecdn.com/gen/image/b/Other.png"},{"name":"Relative","icon":"/gen/image/c/Rel.png"},{"name":"No icon"},{"icon":"/x.png"}]}""";
+        using var doc = JsonDocument.Parse(json);
+        var icons = PoeNinjaMarketDataProvider.ParseUniqueIcons(doc.RootElement);
+        Assert.AreEqual(2, icons.Count);
+        Assert.AreEqual("https://web.poecdn.com/gen/image/a/Bow.png", icons["xoph's inception"]);
+        Assert.AreEqual("https://web.poecdn.com/gen/image/c/Rel.png", icons["Relative"]);
     }
 
     [TestMethod]
