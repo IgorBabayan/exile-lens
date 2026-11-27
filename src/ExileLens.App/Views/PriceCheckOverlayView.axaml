@@ -109,6 +109,23 @@
         </ItemsControl.ItemTemplate>
       </ItemsControl>
     </Expander>
+
+    <!-- Seller filter (Settings → Trade → Sellers). Visible for every item search, even when it returned nothing. -->
+    <Grid ColumnDefinitions="*,Auto" Margin="0,10,0,0" IsVisible="{Binding CanOpenTrade}">
+      <TextBlock Text="Sellers" Classes="secondary" VerticalAlignment="Center" />
+      <Border Grid.Column="1" Classes="segmented">
+        <StackPanel Orientation="Horizontal">
+          <ToggleButton Classes="segment" Content="All" IsChecked="{Binding AllSellers}"
+                        ToolTip.Tip="All sellers matching the listing type in Settings" />
+          <ToggleButton Classes="segment" IsChecked="{Binding OnlineSellersOnly}" ToolTip.Tip="Only sellers that are online right now">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Ellipse Width="7" Height="7" Fill="{DynamicResource SafeBrush}" VerticalAlignment="Center" />
+              <TextBlock Text="Online" />
+            </StackPanel>
+          </ToggleButton>
+        </StackPanel>
+      </Border>
+    </Grid>
   </StackPanel>
 
     <Expander Grid.Row="1" Header="Market listings" Margin="0,4,0,0" IsExpanded="{Binding ShowListings, Mode=TwoWay}" IsVisible="{Binding HasListings}" Padding="0,2,0,0">
@@ -152,6 +169,8 @@
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>
+      <TextBlock Text="{Binding RewardNote}" Classes="caption" TextWrapping="Wrap" Margin="0,4,0,0"
+                 IsVisible="{Binding RewardNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
       <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,10,0,0"
                   IsVisible="{Binding Recommendation, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
         <Path Classes="icon" Width="14" Height="14" Data="{StaticResource IconInfo}" Stroke="{Binding RecommendationBrush}" />

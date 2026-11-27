@@ -23,6 +23,13 @@ public static class TradeListingStatuses
         _ => "any",
     };
 
+    /// <summary>
+    /// Narrows a listing type to sellers that are online right now. "Online in league" is already online-only;
+    /// everything else (including Instant Buyout, whose merchants are usually offline) becomes "In Person (Online)".
+    /// </summary>
+    public static TradeListingStatus OnlineOnly(TradeListingStatus status) =>
+        status == TradeListingStatus.InPersonOnlineInLeague ? status : TradeListingStatus.InPersonOnline;
+
     public static string Label(TradeListingStatus status) => status switch
     {
         TradeListingStatus.InstantBuyoutAndInPerson => "Instant Buyout and In Person",

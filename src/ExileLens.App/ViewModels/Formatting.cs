@@ -8,6 +8,9 @@ internal static class Formatting
 {
     public static string Amount(decimal value) => CurrencyAmount.Format(value);
 
+    /// <summary>Whole quantity with thousands separators, e.g. 2,822,225.</summary>
+    public static string Count(long value) => value.ToString("N0", CultureInfo.InvariantCulture);
+
     public static string Range(decimal low, decimal high) =>
         low == high || Amount(low) == Amount(high) ? Amount(low) : $"{Amount(low)}–{Amount(high)}";
 

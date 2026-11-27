@@ -73,4 +73,5 @@ public sealed class Poe2GameModule(IAppPaths paths) : IGameModule
     public bool HasDisenchanting => true;
     public bool HasSalvage => true;
     public bool HasVendorRecipes => false;
+    public UniqueDustTable? UniqueDust => null;
 }

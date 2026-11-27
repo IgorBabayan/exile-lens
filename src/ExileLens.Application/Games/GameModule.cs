@@ -51,6 +51,9 @@ public interface IGameModule
     bool HasSalvage { get; }
 
     bool HasVendorRecipes { get; }
+
+    /// <summary>PoE 1 unique → Thaumaturgic Dust table (Kingsmarch disenchanting); null when the game has no dust.</summary>
+    UniqueDustTable? UniqueDust { get; }
 }
 
 public interface IGameRegistry

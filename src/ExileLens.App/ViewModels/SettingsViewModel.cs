@@ -74,6 +74,9 @@ public sealed partial class SettingsViewModel : PageViewModel
         CurrentVersion = updates.CurrentVersion.ToString();
         ChatCommands = new ObservableCollection<ChatCommandViewModel>(settings.Current.Chat.Commands.Select(CreateChatRow));
         RefreshChatErrors();
+
+        // The overlay's "All / Online" seller toggle writes the same setting.
+        settings.Changed += (_, _) => OnPropertyChanged(nameof(OnlineSellersOnly));
     }
 
     public IReadOnlyList<GameSelectionOption> GameSelections { get; } =
@@ -330,6 +333,8 @@ public sealed partial class SettingsViewModel : PageViewModel
             }
         }
     }
+
+    public bool OnlineSellersOnly { get => _settings.Current.Trade.OnlineSellersOnly; set => Set(s => s.Trade.OnlineSellersOnly = value); }
 
     public IReadOnlyList<PriceCurrencyOption> PriceCurrencies { get; }
 

@@ -215,6 +215,10 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
     [ObservableProperty]
     private string _rewardTitle = "Disenchantment";
 
+    /// <summary>Caveat for the reward estimate (e.g. corruption implicits need advanced copy).</summary>
+    [ObservableProperty]
+    private string? _rewardNote;
+
     [ObservableProperty]
     private string? _recommendation;
 
@@ -237,6 +241,43 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
     public bool HasPropertyFilters => PropertyFilters.Count > 0;
 
     public bool HasListings => Listings.Count > 0;
+
+    /// <summary>Seller filter of the trade search, shared with Settings → Trade. Switching re-runs the search at once.</summary>
+    public bool OnlineSellersOnly
+    {
+        get => _settings.Current.Trade.OnlineSellersOnly;
+        set => SetOnlineSellersOnly(value);
+    }
+
+    /// <summary>Second half of the "All / Online" segmented toggle.</summary>
+    public bool AllSellers
+    {
+        get => !_settings.Current.Trade.OnlineSellersOnly;
+        set => SetOnlineSellersOnly(!value);
+    }
+
+    private void SetOnlineSellersOnly(bool value)
+    {
+        if (value != _settings.Current.Trade.OnlineSellersOnly)
+        {
+            _settings.Update(s => s.Trade.OnlineSellersOnly = value);
+            if (_session is { UsesBulkPricing: false })
+            {
+                // Same path as an explicit refresh; a previously seen status is served from the query cache.
+                _debounce.Stop();
+                IsSearchPending = false;
+                _ = RunAsync();
+            }
+        }
+
+        // Posted, not raised inline: also re-checks a segment that was clicked while already checked (a ToggleButton
+        // un-checks itself), and a notification raised inside the binding's own write would be ignored.
+        Dispatcher.UIThread.Post(() =>
+        {
+            OnPropertyChanged(nameof(OnlineSellersOnly));
+            OnPropertyChanged(nameof(AllSellers));
+        });
+    }
 
     public void Load(PriceCheckSession session)
     {
@@ -271,6 +312,8 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
         Error = null;
         PriceNote = null;
         CanOpenTrade = !session.UsesBulkPricing;
+        OnPropertyChanged(nameof(OnlineSellersOnly));
+        OnPropertyChanged(nameof(AllSellers));
         ApplyRewards(_pricing.EstimateRewardsLocal(session, null), null);
     }
 
@@ -471,6 +514,18 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
             AddRewardRows(salvage, primary is null ? "Expected reward" : "Salvage reward", primary is null ? "Estimated value" : "Salvage value");
         }
 
+        RewardNote = null;
+        if (rewards.Dust is { } dust)
+        {
+            if (primary is null && rewards.Salvage is null)
+            {
+                RewardTitle = "Disenchantment";
+            }
+
+            AddDustRows(dust, market);
+            RewardNote = dust.Note;
+        }
+
         HasRewards = RewardRows.Count > 0;
 
         if (rewards.Comparison is { } c && s.ShowSuggestedAction && market is not null)
@@ -511,6 +566,21 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
         }
     }
 
+    private void AddDustRows(DustEstimate dust, PriceEstimate? market)
+    {
+        RewardRows.Add(new KeyValueRow(DustEstimate.CurrencyName, Formatting.Count(dust.Amount)));
+        if (dust.AmountAtMaxQuality != dust.Amount)
+        {
+            RewardRows.Add(new KeyValueRow($"At {DustEstimate.MaxCommonQuality}% quality", Formatting.Count(dust.AmountAtMaxQuality)));
+        }
+
+        // Dust is not traded, so "dust per currency" is how disenchanting is compared with selling.
+        if (_settings.Current.Rewards.ShowComparison && market is { HasValue: true, Median: { } median } && median > 0)
+        {
+            RewardRows.Add(new KeyValueRow($"Dust per {market.ValuationCurrency}", Formatting.Count((long)Math.Round(dust.Amount / median))));
+        }
+    }
+
     private void RecordHistory(PriceCheckResult result)
     {
         if (_historyRecorded || _session is null)
@@ -537,7 +607,9 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
             MatchingListings = e.MatchingListings,
             Confidence = e.Confidence.ToString(),
             DisenchantValue = d?.TotalValue,
-            DisenchantSummary = d is null ? null : string.Join(", ", d.Lines.Select(l => $"{Formatting.Amount(l.Quantity)} {Formatting.Plural(l.Currency, l.Quantity)}")),
+            DisenchantSummary = d is not null
+                ? string.Join(", ", d.Lines.Select(l => $"{Formatting.Amount(l.Quantity)} {Formatting.Plural(l.Currency, l.Quantity)}"))
+                : result.Rewards.Dust is { } dust ? $"{Formatting.Count(dust.Amount)} {DustEstimate.CurrencyName}" : null,
         });
     }
 

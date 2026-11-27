@@ -22,7 +22,12 @@ public sealed class PriceCheckSession
     public bool UsesBulkPricing { get; init; }
 }
 
-public sealed record RewardSummary(RewardEstimate? Disenchant, RewardEstimate? Salvage, RewardEstimate? Vendor, ValueComparison? Comparison);
+public sealed record RewardSummary(
+    RewardEstimate? Disenchant,
+    RewardEstimate? Salvage,
+    RewardEstimate? Vendor,
+    ValueComparison? Comparison,
+    DustEstimate? Dust = null);
 
 public sealed record PriceCheckResult(
     PriceEstimate Estimate,
@@ -96,6 +101,9 @@ public sealed class PriceCheckService : IPriceEstimationService
         {
             _statIndexes[game.Game] = index;
         }
+
+        // Off the UI thread (after the await): parse the unique dust table so the first unique check doesn't pay for it.
+        _ = game.UniqueDust;
     }
 
     public PriceCheckSession CreateSession(ParsedItem item, IGameModule game, string league)
@@ -273,6 +281,7 @@ public sealed class PriceCheckService : IPriceEstimationService
         var game = session.Game;
         var item = session.Item;
         RewardEstimate? disenchant = null, salvage = null, vendor = null;
+        DustEstimate? dust = null;
 
         if (item.Category is ItemCategory.Equipment or ItemCategory.Jewel or ItemCategory.Flask or ItemCategory.Charm or ItemCategory.Gem)
         {
@@ -292,6 +301,12 @@ public sealed class PriceCheckService : IPriceEstimationService
             }
         }
 
+        // PoE 1 unique disenchanting (Thaumaturgic Dust). Dust has no market rate, so it never enters the value comparison.
+        if (s.DisenchantEnabled && item.Rarity == ItemRarity.Unique && game.UniqueDust is { } dustTable)
+        {
+            dust = new DustEstimator(dustTable).Estimate(item);
+        }
+
         ValueComparison? comparison = null;
         if (disenchant is not null || salvage is not null || vendor is not null)
         {
@@ -299,7 +314,7 @@ public sealed class PriceCheckService : IPriceEstimationService
             comparison = ValueRecommender.Recommend(market, minTrade, disenchant, salvage, vendor);
         }
 
-        return new RewardSummary(disenchant, salvage, vendor, comparison);
+        return new RewardSummary(disenchant, salvage, vendor, comparison, dust);
     }
 
     private TradeQueryOptions Options(IGameModule game)
@@ -309,7 +324,7 @@ public sealed class PriceCheckService : IPriceEstimationService
             game.FilterLayout,
             t.ModifierMinPercent,
             t.EnableModifiersByDefault,
-            t.ListingStatus,
+            t.OnlineSellersOnly ? TradeListingStatuses.OnlineOnly(t.ListingStatus) : t.ListingStatus,
             TradePriceCurrencies.Find(t.PriceCurrency).ApiId(game.Game));
     }
 }

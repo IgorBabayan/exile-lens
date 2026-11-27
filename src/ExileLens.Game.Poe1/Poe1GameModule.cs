@@ -16,6 +16,9 @@ public sealed class Poe1GameModule(IAppPaths paths) : IGameModule
     private readonly Lazy<IReadOnlyList<MapModifierDefinition>> _mapMods = new(() => EmbeddedGameData.LoadMapModifiers(
         typeof(Poe1GameModule).Assembly, "ExileLens.Game.Poe1.Data.map-modifiers.json", Path.Combine(paths.DataDirectory, "rules", "poe1", "map-modifiers.json")));
 
+    private readonly Lazy<UniqueDustTable> _dust = new(() => EmbeddedGameData.LoadUniqueDust(
+        typeof(Poe1GameModule).Assembly, "ExileLens.Game.Poe1.Data.unique-dust.json", Path.Combine(paths.DataDirectory, "rules", "poe1", "unique-dust.json")));
+
     public GameId Game => GameId.Poe1;
     public string DisplayName => "Path of Exile";
     public string ShortName => "PoE 1";
@@ -75,4 +78,5 @@ public sealed class Poe1GameModule(IAppPaths paths) : IGameModule
     public bool HasDisenchanting => false;
     public bool HasSalvage => false;
     public bool HasVendorRecipes => true;
+    public UniqueDustTable? UniqueDust => _dust.Value;
 }

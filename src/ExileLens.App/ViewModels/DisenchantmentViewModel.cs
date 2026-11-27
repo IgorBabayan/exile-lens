@@ -106,7 +106,7 @@ public sealed partial class DisenchantmentViewModel(
         RulesVersion = $"Rules verified for {module.DisplayName} {r.RulesVersion}";
         MechanicDescription = module.HasDisenchanting
             ? "Disenchanting destroys an item at a vendor for currency shards. Salvaging (a separate bench) destroys equipment for quality currency and Artificer's Shards — the two are never combined."
-            : "Path of Exile 1 has no disenchanting; single-item vendor recipes are estimated instead.";
+            : "Unique items disenchant at Rog (Kingsmarch) into Thaumaturgic Dust: base value per unique × item level (65–84) × quality (+2% per 1%), influences and corruption implicits (+50% each). Single-item vendor recipes are estimated too.";
 
         Rules.Clear();
         foreach (var rule in r.Disenchant)

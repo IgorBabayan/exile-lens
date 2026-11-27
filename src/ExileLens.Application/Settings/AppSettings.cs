@@ -83,6 +83,9 @@ public sealed class TradeSettings
     public bool EnableModifiersByDefault { get; set; } = true;
     public TradeListingStatus ListingStatus { get; set; } = TradeListingStatus.InstantBuyout;
 
+    /// <summary>Only sellers that are online right now ("All" keeps <see cref="ListingStatus"/> as is).</summary>
+    public bool OnlineSellersOnly { get; set; }
+
     /// <summary>Buyout currency of the trade search (<see cref="TradePriceCurrency.Key"/>); "any" leaves it unrestricted.</summary>
     public string PriceCurrency { get; set; } = TradePriceCurrencies.AnyKey;
     public string MarketDataProvider { get; set; } = "poe.ninja";

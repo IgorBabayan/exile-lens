@@ -232,6 +232,10 @@
             </ComboBox>
           </StackPanel>
           <StackPanel Classes="row">
+            <TextBlock Classes="label" Text="Sellers" />
+            <ToggleSwitch IsChecked="{Binding OnlineSellersOnly}" OnContent="Only online sellers" OffContent="All sellers" />
+          </StackPanel>
+          <StackPanel Classes="row">
             <TextBlock Classes="label" Text="Preferred currency" />
             <ComboBox ItemsSource="{Binding PriceCurrencies}" SelectedItem="{Binding PreferredCurrency}" Width="260" MaxDropDownHeight="360">
               <ComboBox.ItemTemplate>
