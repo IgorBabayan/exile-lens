@@ -50,16 +50,23 @@ public sealed partial class FilterItemViewModel : ObservableObject
 
     public bool HasMax => Filter.Kind is FilterKind.MapTier or FilterKind.GemLevel or FilterKind.ItemLevel;
 
+    /// <summary>Origin tag shown before the modifier text ("fractured ", "crafted ", ...); null for plain explicits.</summary>
     public string? KindTag => Filter.ModifierKind switch
     {
-        ModifierKind.Implicit => "implicit",
-        ModifierKind.Crafted => "crafted",
-        ModifierKind.Fractured => "fractured",
-        ModifierKind.Enchant => "enchant",
-        ModifierKind.Rune => "rune",
-        ModifierKind.Desecrated => "desecrated",
+        ModifierKind.Implicit => "implicit ",
+        ModifierKind.Crafted => "crafted ",
+        ModifierKind.Fractured => "fractured ",
+        ModifierKind.Enchant => "enchant ",
+        ModifierKind.Rune => "rune ",
+        ModifierKind.Desecrated => "desecrated ",
         _ => null,
     };
+
+    /// <summary>Drives the in-game fractured color on the modifier line.</summary>
+    public bool IsFractured => Filter.ModifierKind == ModifierKind.Fractured;
+
+    /// <summary>Drives the in-game crafted color on the modifier line.</summary>
+    public bool IsCrafted => Filter.ModifierKind == ModifierKind.Crafted;
 
     [ObservableProperty]
     private bool _enabled;

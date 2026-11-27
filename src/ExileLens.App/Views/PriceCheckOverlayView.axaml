@@ -8,6 +8,20 @@
     (and scroll on their own), the rewards/trade button stay pinned below. In the overlay the window caps the height,
     so only the listings scroll; embedded in a page the star row simply sizes to content.
   -->
+  <UserControl.Styles>
+    <!-- Modifier origin tag and in-game origin colors (order matters: the origin styles override the tag style). -->
+    <Style Selector="TextBlock.mod Run.tag">
+      <Setter Property="FontSize" Value="{DynamicResource FontSizeCaption}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    </Style>
+    <Style Selector="TextBlock.mod.fractured, TextBlock.mod.fractured Run.tag">
+      <Setter Property="Foreground" Value="{DynamicResource ModFracturedBrush}" />
+    </Style>
+    <Style Selector="TextBlock.mod.crafted, TextBlock.mod.crafted Run.tag">
+      <Setter Property="Foreground" Value="{DynamicResource ModCraftedBrush}" />
+    </Style>
+  </UserControl.Styles>
+
   <Grid RowDefinitions="Auto,*,Auto">
   <StackPanel Grid.Row="0" Spacing="0">
     <!-- Header (drag handle: pressing anywhere except the buttons moves the overlay) -->
@@ -126,11 +140,11 @@
         <DataTemplate x:DataType="vm:FilterItemViewModel">
           <Grid ColumnDefinitions="*,Auto" Margin="0,2">
             <CheckBox IsChecked="{Binding Enabled}" MinHeight="28">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <TextBlock Text="{Binding Label}" TextWrapping="Wrap" MaxWidth="290" />
-                <TextBlock Text="{Binding KindTag}" Classes="caption" VerticalAlignment="Center"
-                           IsVisible="{Binding KindTag, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-              </StackPanel>
+              <!-- One wrapping line: origin tag first, then the modifier, tinted like the game tooltip. -->
+              <TextBlock Classes="mod" TextWrapping="Wrap" MaxWidth="290"
+                         Classes.fractured="{Binding IsFractured}" Classes.crafted="{Binding IsCrafted}">
+                <Run Classes="tag" Text="{Binding KindTag}" /><Run Text="{Binding Label}" />
+              </TextBlock>
             </CheckBox>
             <TextBox Grid.Column="1" Text="{Binding MinText}" Width="58" MinHeight="26" Padding="6,3" FontSize="12"
                      PlaceholderText="min" IsEnabled="{Binding Enabled}" ToolTip.Tip="Minimum value" />
