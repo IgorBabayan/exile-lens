@@ -20,6 +20,9 @@ public sealed class ItemTextParser : IItemParser
     /// <summary>PoE 1 synthesised items carry this prefix on the base line; the trade API only knows the plain base.</summary>
     private const string SynthesisedPrefix = "Synthesised ";
 
+    /// <summary>PoE 1 imbued gem line: "Supported by Level 1 Lifetap".</summary>
+    private const string ImbuedPrefix = "Supported by Level ";
+
     private static readonly string[] DescriptionPrefixes =
     [
         "Right click", "Place into", "Travel to this", "Can be used in", "Stack Size", "Shift click",
@@ -104,6 +107,7 @@ public sealed class ItemTextParser : IItemParser
         var unparsed = new List<string>();
         var influences = new List<string>();
         int? itemLevel = null, quality = null, gemLevel = null, mapTier = null, stack = null, maxStack = null, reqLevel = null;
+        string? imbuedSupport = null;
         bool corrupted = false, identified = true, mirrored = false, fractured = false, synthesised = false, advanced = false;
         var sockets = SocketInfo.None;
         var modifierSectionCount = 0;
@@ -149,6 +153,12 @@ public sealed class ItemTextParser : IItemParser
 
             if (first.StartsWith("Note:", StringComparison.Ordinal))
             {
+                continue;
+            }
+
+            if (rarity == ItemRarity.Gem && section.Count == 1 && TryParseImbuedSupport(first) is { } support)
+            {
+                imbuedSupport = support;
                 continue;
             }
 
@@ -335,6 +345,7 @@ public sealed class ItemTextParser : IItemParser
             ItemLevel = itemLevel,
             Quality = quality,
             GemLevel = gemLevel,
+            ImbuedSupport = imbuedSupport,
             MapTier = mapTier ?? ParseTierFromBase(baseType),
             StackSize = stack,
             MaxStackSize = maxStack,
@@ -505,6 +516,31 @@ public sealed class ItemTextParser : IItemParser
         }
 
         return false;
+    }
+
+    /// <summary>"Supported by Level 1 Lifetap" → "Lifetap"; null for any other line.</summary>
+    private static string? TryParseImbuedSupport(string line)
+    {
+        if (!line.StartsWith(ImbuedPrefix, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var rest = line.AsSpan(ImbuedPrefix.Length);
+        var digits = 0;
+        while (digits < rest.Length && char.IsAsciiDigit(rest[digits]))
+        {
+            digits++;
+        }
+
+        if (digits == 0 || digits >= rest.Length || rest[digits] != ' ')
+        {
+            return null;
+        }
+
+        // The game may separate the name with a zero-width space.
+        var name = rest[(digits + 1)..].Trim().Trim('\u200B');
+        return name.IsEmpty ? null : name.ToString();
     }
 
     private static bool HasPropertyLine(List<string> section)

@@ -47,6 +47,18 @@ public sealed class ParserTests
     }
 
     [TestMethod]
+    public void ImbuedGemSupportIsParsedAndNotAModifier()
+    {
+        var item = Fixture.Parse("poe1/imbued-transfigured-gem.txt", GameId.Poe1);
+
+        Assert.AreEqual("Arc of Oscillating", item.BaseType);
+        Assert.AreEqual("Lifetap", item.ImbuedSupport);
+        Assert.AreEqual(20, item.GemLevel);
+        Assert.AreEqual(20, item.Quality);
+        Assert.IsFalse(item.Modifiers.Any(m => m.Text.StartsWith("Supported by", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
     public void SimpleCopyEstimatesAffixCountFromLines()
     {
         var item = Fixture.Parse("poe2/rare-ring-simple.txt", GameId.Poe2);

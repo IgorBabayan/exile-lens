@@ -90,6 +90,7 @@ public sealed class PriceCheckService : IPriceEstimationService
     private readonly ConcurrentDictionary<string, Lazy<Task<(PriceEstimate, IReadOnlyList<MarketListing>, string?)>>> _inflight = new();
     private readonly ConcurrentDictionary<GameId, StatIndex> _statIndexes = new();
     private readonly ConcurrentDictionary<GameId, IReadOnlyDictionary<string, string[]>> _uniques = new();
+    private readonly ConcurrentDictionary<GameId, IReadOnlyDictionary<string, TradeTypeVariant>> _gemVariants = new();
     private readonly ConcurrentDictionary<string, string> _icons = new(StringComparer.OrdinalIgnoreCase);
     private const int MaxRememberedIcons = 4096;
 
@@ -129,7 +130,32 @@ public sealed class PriceCheckService : IPriceEstimationService
 
         // Unique names per base (disk cached): an unidentified unique can then offer its candidates instantly.
         await LoadUniquesAsync(game, cancellationToken).ConfigureAwait(false);
+
+        // Same download and cache: transfigured gems then search by base + discriminator from the first check.
+        await LoadGemVariantsAsync(game, cancellationToken).ConfigureAwait(false);
     }
+
+    private async Task LoadGemVariantsAsync(IGameModule game, CancellationToken cancellationToken)
+    {
+        if (_gemVariants.ContainsKey(game.Game))
+        {
+            return;
+        }
+
+        var map = await _tradeData.GetGemVariantsAsync(game, cancellationToken).ConfigureAwait(false);
+        if (map.Count > 0)
+        {
+            _gemVariants[game.Game] = map; // an empty (failed) load is not remembered, so a later check retries
+        }
+    }
+
+    /// <summary>Base + discriminator of a transfigured gem ("Arc of Oscillating" → "Arc" / "alt_y"); null for anything else.</summary>
+    private TradeTypeVariant? TypeVariant(PriceCheckSession session) =>
+        session.Item.Category == ItemCategory.Gem
+        && _gemVariants.TryGetValue(session.Game.Game, out var map)
+        && map.TryGetValue(session.Item.BaseType, out var variant)
+            ? variant
+            : null;
 
     public bool NeedsUniqueChoice(PriceCheckSession session) =>
         !session.UsesBulkPricing && session.Item is { Rarity: ItemRarity.Unique, Name: null, BaseType.Length: > 0 };
@@ -235,6 +261,12 @@ public sealed class PriceCheckService : IPriceEstimationService
             }
             else
             {
+                if (session.Item.Category == ItemCategory.Gem)
+                {
+                    // Usually already loaded by the warm-up; awaited so a transfigured gem never searches an unknown type.
+                    await LoadGemVariantsAsync(session.Game, cancellationToken).ConfigureAwait(false);
+                }
+
                 var options = Options(session);
                 var query = _queryBuilder.Build(session.Item, session.Filters, options);
                 var key = $"{session.Game.Game}|{session.League}|{session.ValuationCurrency}|{query.ToJsonString()}";
@@ -390,7 +422,8 @@ public sealed class PriceCheckService : IPriceEstimationService
         return new RewardSummary(disenchant, salvage, vendor, comparison, dust);
     }
 
-    private TradeQueryOptions Options(PriceCheckSession session) => Options(session.Game, session.OnlineSellersOnly);
+    private TradeQueryOptions Options(PriceCheckSession session) =>
+        Options(session.Game, session.OnlineSellersOnly) with { TypeVariant = TypeVariant(session) };
 
     private TradeQueryOptions Options(IGameModule game, bool onlineSellersOnly)
     {

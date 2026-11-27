@@ -29,9 +29,27 @@ public sealed partial class FilterItemViewModel : ObservableObject
         _enabled = filter.Enabled;
         _minText = Formatting.Format(filter.Min);
         _maxText = Formatting.Format(filter.Max);
+        if (filter.Extra.Count > 0)
+        {
+            var lines = new FilterLineViewModel[filter.Extra.Count];
+            for (var i = 0; i < lines.Length; i++)
+            {
+                lines[i] = new FilterLineViewModel(filter, filter.Extra[i], changed);
+            }
+
+            ExtraLines = lines;
+        }
     }
 
     public SearchFilter Filter { get; }
+
+    /// <summary>Further lines of a hybrid affix: shown under the first line, toggled by its checkbox, each with its own minimum.</summary>
+    public IReadOnlyList<FilterLineViewModel> ExtraLines { get; } = [];
+
+    public bool HasExtraLines => ExtraLines.Count > 0;
+
+    /// <summary>Option stats (an imbued gem's support) match by option and have no minimum.</summary>
+    public bool HasMinBox => Filter.OptionId is null;
 
     public string Label => Filter.Kind switch
     {
@@ -46,7 +64,7 @@ public sealed partial class FilterItemViewModel : ObservableObject
 
     public bool IsStat => Filter.Kind == FilterKind.Stat;
 
-    public bool HasRange => Filter.Kind is not (FilterKind.Corrupted or FilterKind.Rarity or FilterKind.Name);
+    public bool HasRange => Filter.Kind is not (FilterKind.Corrupted or FilterKind.Rarity or FilterKind.Name or FilterKind.Imbued);
 
     public bool HasMax => Filter.Kind is FilterKind.MapTier or FilterKind.GemLevel or FilterKind.ItemLevel;
 
@@ -111,6 +129,52 @@ public sealed partial class FilterItemViewModel : ObservableObject
         {
             Filter.Max = v;
             if (Filter.Enabled)
+            {
+                _changed();
+            }
+        }
+    }
+}
+
+/// <summary>A continuation line of a hybrid affix row; enabled together with its head filter.</summary>
+public sealed partial class FilterLineViewModel : ObservableObject
+{
+    private readonly SearchFilter _head;
+    private readonly Action _changed;
+
+    public FilterLineViewModel(SearchFilter head, SearchFilter line, Action changed)
+    {
+        _head = head;
+        _changed = changed;
+        Line = line;
+        _minText = Formatting.Format(line.Min);
+    }
+
+    public SearchFilter Line { get; }
+
+    public string Label => Line.Label;
+
+    public bool HasMinBox => Line.OptionId is null;
+
+    public bool IsFractured => Line.ModifierKind == ModifierKind.Fractured;
+
+    public bool IsCrafted => Line.ModifierKind == ModifierKind.Crafted;
+
+    public bool IsFoulborn => Line.ModifierKind == ModifierKind.Mutated;
+
+    public bool IsPrefix => Line.Slot == AffixSlot.Prefix && Line.ModifierKind == ModifierKind.Explicit;
+
+    public bool IsSuffix => Line.Slot == AffixSlot.Suffix && Line.ModifierKind == ModifierKind.Explicit;
+
+    [ObservableProperty]
+    private string? _minText;
+
+    partial void OnMinTextChanged(string? value)
+    {
+        if (Formatting.TryParseDouble(value, out var v))
+        {
+            Line.Min = v;
+            if (_head.Enabled)
             {
                 _changed();
             }

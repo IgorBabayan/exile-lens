@@ -158,19 +158,38 @@
     <ItemsControl ItemsSource="{Binding StatFilters}" IsVisible="{Binding HasStatFilters}">
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:FilterItemViewModel">
-          <Grid ColumnDefinitions="*,Auto" Margin="0,2">
-            <CheckBox IsChecked="{Binding Enabled}" MinHeight="28">
-              <!-- One wrapping line: origin tag first, then the modifier, tinted like the game tooltip. -->
-              <TextBlock Classes="mod" TextWrapping="Wrap" MaxWidth="290"
-                         Classes.fractured="{Binding IsFractured}" Classes.crafted="{Binding IsCrafted}"
-                         Classes.foulborn="{Binding IsFoulborn}"
-                         Classes.prefix="{Binding IsPrefix}" Classes.suffix="{Binding IsSuffix}">
-                <Run Classes="tag" Text="{Binding KindTag}" /><Run Text="{Binding Label}" />
-              </TextBlock>
-            </CheckBox>
-            <TextBox Grid.Column="1" Text="{Binding MinText}" Width="58" MinHeight="26" Padding="6,3" FontSize="12"
-                     PlaceholderText="min" IsEnabled="{Binding Enabled}" ToolTip.Tip="Minimum value" />
-          </Grid>
+          <StackPanel Margin="0,2">
+            <Grid ColumnDefinitions="*,Auto">
+              <CheckBox IsChecked="{Binding Enabled}" MinHeight="28">
+                <!-- One wrapping line: origin tag first, then the modifier, tinted like the game tooltip. -->
+                <TextBlock Classes="mod" TextWrapping="Wrap" MaxWidth="290"
+                           Classes.fractured="{Binding IsFractured}" Classes.crafted="{Binding IsCrafted}"
+                           Classes.foulborn="{Binding IsFoulborn}"
+                           Classes.prefix="{Binding IsPrefix}" Classes.suffix="{Binding IsSuffix}">
+                  <Run Classes="tag" Text="{Binding KindTag}" /><Run Text="{Binding Label}" />
+                </TextBlock>
+              </CheckBox>
+              <TextBox Grid.Column="1" Text="{Binding MinText}" Width="58" MinHeight="26" Padding="6,3" FontSize="12"
+                       PlaceholderText="min" IsEnabled="{Binding Enabled}" IsVisible="{Binding HasMinBox}" ToolTip.Tip="Minimum value" />
+            </Grid>
+            <!-- Hybrid affix: the other lines of the same affix, one checkbox for all, a minimum per line. -->
+            <ItemsControl ItemsSource="{Binding ExtraLines}" IsVisible="{Binding HasExtraLines}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:FilterLineViewModel">
+                  <Grid ColumnDefinitions="*,Auto" Margin="0,2,0,0">
+                    <TextBlock Classes="mod" TextWrapping="Wrap" MaxWidth="262" Margin="28,0,0,0" VerticalAlignment="Center"
+                               Classes.fractured="{Binding IsFractured}" Classes.crafted="{Binding IsCrafted}"
+                               Classes.foulborn="{Binding IsFoulborn}"
+                               Classes.prefix="{Binding IsPrefix}" Classes.suffix="{Binding IsSuffix}"
+                               Text="{Binding Label}" />
+                    <TextBox Grid.Column="1" Text="{Binding MinText}" Width="58" MinHeight="26" Padding="6,3" FontSize="12"
+                             PlaceholderText="min" IsVisible="{Binding HasMinBox}" ToolTip.Tip="Minimum value"
+                             IsEnabled="{Binding $parent[ItemsControl].((vm:FilterItemViewModel)DataContext).Enabled, FallbackValue=True}" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
         </DataTemplate>
       </ItemsControl.ItemTemplate>
     </ItemsControl>

@@ -104,6 +104,9 @@ public sealed class ParsedItem
     public int? ItemLevel { get; init; }
     public int? Quality { get; init; }
     public int? GemLevel { get; init; }
+
+    /// <summary>PoE 1 imbued gem: name of the built-in support ("Supported by Level 1 Lifetap" → "Lifetap").</summary>
+    public string? ImbuedSupport { get; init; }
     public int? MapTier { get; init; }
     public int? StackSize { get; init; }
     public int? MaxStackSize { get; init; }
@@ -155,6 +158,7 @@ public sealed class ParsedItem
         ItemLevel = ItemLevel,
         Quality = Quality,
         GemLevel = GemLevel,
+        ImbuedSupport = ImbuedSupport,
         MapTier = MapTier,
         StackSize = StackSize,
         MaxStackSize = MaxStackSize,

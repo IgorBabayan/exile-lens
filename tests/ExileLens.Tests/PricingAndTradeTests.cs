@@ -492,4 +492,124 @@ public sealed class TradeQueryTests
 
         CollectionAssert.AreEqual(new[] { "chaos", "divine" }, TradePriceCurrencies.Find("chaos_divine").IconIds);
     }
+
+    private const string ImbuedStatsJson = """
+        {"result":[{"id":"imbued","label":"Imbued","entries":[
+          {"id":"imbued.pseudo_built_in_support","text":"Supported by Level 1 #","type":"imbued",
+           "option":{"options":[{"id":3918067187,"text":"Lifetap"},{"id":1826945816,"text":"Added Chaos Damage"}]}}
+        ]}]}
+        """;
+
+    private static StatIndex ImbuedStats()
+    {
+        using var doc = JsonDocument.Parse(ImbuedStatsJson);
+        return new StatIndex(TradeDataProvider.ParseStats(doc.RootElement).ToList());
+    }
+
+    [TestMethod]
+    public void ImbuedSupportOptionsAreIndexedByName()
+    {
+        Assert.IsTrue(ImbuedStats().TryResolveImbuedSupport("Lifetap", out var option));
+        Assert.AreEqual("imbued.pseudo_built_in_support", option.StatId);
+        Assert.AreEqual("3918067187", option.OptionId);
+    }
+
+    [TestMethod]
+    public void ImbuedTransfiguredGemSearchesBaseDiscriminatorAndSupport()
+    {
+        var item = Fixture.Parse("poe1/imbued-transfigured-gem.txt", GameId.Poe1);
+        var builder = new TradeQueryBuilder();
+        var options = new TradeQueryOptions(Games.Poe1.FilterLayout, TypeVariant: new TradeTypeVariant("Arc", "alt_y"));
+        var filters = builder.CreateDefaultFilters(item, ImbuedStats(), options);
+
+        var support = filters.Single(f => f.OptionId is not null);
+        Assert.IsTrue(support.Enabled);
+        Assert.AreEqual(FilterKind.Stat, support.Kind);
+
+        var query = builder.Build(item, filters, options)["query"]!;
+        Assert.AreEqual("Arc", query["type"]!["option"]!.GetValue<string>());
+        Assert.AreEqual("alt_y", query["type"]!["discriminator"]!.GetValue<string>());
+        var stat = query["stats"]![0]!["filters"]![0]!;
+        Assert.AreEqual("imbued.pseudo_built_in_support", stat["id"]!.GetValue<string>());
+        Assert.AreEqual(3918067187L, stat["value"]!["option"]!.GetValue<long>());
+        Assert.AreEqual(20d, query["filters"]!["misc_filters"]!["filters"]!["gem_level"]!["min"]!.GetValue<double>());
+    }
+
+    [TestMethod]
+    public void ImbuedGemWithoutStatDataFallsBackToImbuedFlag()
+    {
+        var item = Fixture.Parse("poe1/imbued-transfigured-gem.txt", GameId.Poe1);
+        var builder = new TradeQueryBuilder();
+        var options = new TradeQueryOptions(Games.Poe1.FilterLayout);
+        var filters = builder.CreateDefaultFilters(item, null, options);
+
+        var misc = builder.Build(item, filters, options)["query"]!["filters"]!["misc_filters"]!["filters"]!;
+        Assert.AreEqual("true", misc["gem_imbued"]!["option"]!.GetValue<string>());
+    }
+
+    [TestMethod]
+    public void CorruptedGemWithoutSupportExcludesImbuedCopies()
+    {
+        var item = Fixture.Parse("poe1/war-banner-gem.txt", GameId.Poe1);
+        var builder = new TradeQueryBuilder();
+        var options = new TradeQueryOptions(Games.Poe1.FilterLayout);
+        var filters = builder.CreateDefaultFilters(item, ImbuedStats(), options);
+
+        var misc = builder.Build(item, filters, options)["query"]!["filters"]!["misc_filters"]!["filters"]!;
+        Assert.AreEqual("false", misc["gem_imbued"]!["option"]!.GetValue<string>());
+    }
+
+    [TestMethod]
+    public void TransfiguredGemsAreReadFromTheTradeItemList()
+    {
+        const string json = """
+            {"result":[
+              {"id":"gem","label":"Gems","entries":[
+                {"type":"Arc","text":"Arc"},
+                {"type":"Arc","text":"Arc of Oscillating","disc":"alt_y"},
+                {"type":"Arc","text":"Arc of Surging","disc":"alt_x"}]},
+              {"id":"accessory","label":"Accessories","entries":[
+                {"name":"Astramentis","type":"Onyx Amulet","text":"Astramentis Onyx Amulet","flags":{"unique":true}}]}
+            ]}
+            """;
+        using var doc = JsonDocument.Parse(json);
+        var data = TradeDataProvider.ParseItems(doc.RootElement);
+
+        Assert.AreEqual(2, data.Gems.Count);
+        Assert.AreEqual(new TradeTypeVariant("Arc", "alt_y"), data.Gems["arc of oscillating"]);
+        CollectionAssert.AreEqual(new[] { "Astramentis" }, data.Uniques["Onyx Amulet"]);
+    }
+
+    [TestMethod]
+    public void HybridAffixIsOneFilterWithBothStats()
+    {
+        var item = Fixture.Parse("poe1/fractured-hybrid-boots-advanced.txt", GameId.Poe1);
+        var stats = new StatIndex(
+        [
+            new TradeStat("fractured.stat_evasion_local", "#% increased Evasion Rating (Local)", "fractured"),
+            new TradeStat("fractured.stat_stun_recovery", "#% increased Stun and Block Recovery", "fractured"),
+            new TradeStat("explicit.stat_life", "+# to maximum Life", "explicit"),
+            new TradeStat("explicit.stat_fire", "+#% to Fire Resistance", "explicit"),
+        ]);
+        var builder = new TradeQueryBuilder();
+        var options = new TradeQueryOptions(Games.Poe1.FilterLayout);
+        var filters = builder.CreateDefaultFilters(item, stats, options);
+
+        var statRows = filters.Where(f => f.Kind == FilterKind.Stat).ToList();
+        Assert.AreEqual(3, statRows.Count, "the hybrid fractured prefix is one row");
+        var hybrid = statRows[0];
+        Assert.AreEqual("fractured.stat_evasion_local", hybrid.StatId);
+        Assert.AreEqual(1, hybrid.Extra.Count);
+        Assert.AreEqual("fractured.stat_stun_recovery", hybrid.Extra[0].StatId);
+        Assert.AreEqual(15d, hybrid.Extra[0].Min, "each line keeps its own minimum");
+
+        var ids = builder.Build(item, filters, options)["query"]!["stats"]![0]!["filters"]!.AsArray()
+            .Select(f => f!["id"]!.GetValue<string>()).ToList();
+        CollectionAssert.IsSubsetOf(new[] { "fractured.stat_evasion_local", "fractured.stat_stun_recovery" }, ids);
+
+        hybrid.Enabled = false;
+        ids = builder.Build(item, filters, options)["query"]!["stats"]![0]!["filters"]!.AsArray()
+            .Select(f => f!["id"]!.GetValue<string>()).ToList();
+        CollectionAssert.DoesNotContain(ids, "fractured.stat_stun_recovery", "one checkbox toggles every line of the affix");
+    }
 }
