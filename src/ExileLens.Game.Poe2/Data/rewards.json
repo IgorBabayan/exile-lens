@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "game": "Poe2",
+  "rulesVersion": "0.1.0c+ (re-verified 2026-11)",
+  "sources": [
+    "https://www.poe2wiki.net/wiki/Vendor (Disenchanting; 0.1.0c: rares with 6 modifiers give 2 Regal Shards)",
+    "https://www.poe2wiki.net/wiki/Salvage_Bench (1 quality currency per 5% quality, chance for one more between breakpoints; 1 Artificer's Shard per socket)"
+  ],
+  "disenchant": [
+    {
+      "id": "magic",
+      "description": "Magic items disenchant into one Transmutation Shard.",
+      "when": { "rarities": [ "Magic" ] },
+      "rewards": [ { "currency": "Transmutation Shard", "quantity": 1 } ]
+    },
+    {
+      "id": "rare-6-mods",
+      "description": "Rare items with six modifiers disenchant into two Regal Shards.",
+      "when": { "rarities": [ "Rare" ], "minExplicitAffixes": 6 },
+      "rewards": [ { "currency": "Regal Shard", "quantity": 2 } ]
+    },
+    {
+      "id": "rare",
+      "description": "Rare items disenchant into one Regal Shard.",
+      "when": { "rarities": [ "Rare" ] },
+      "rewards": [ { "currency": "Regal Shard", "quantity": 1 } ]
+    },
+    {
+      "id": "unique",
+      "description": "Unique items disenchant into one Chance Shard.",
+      "when": { "rarities": [ "Unique" ] },
+      "rewards": [ { "currency": "Chance Shard", "quantity": 1 } ]
+    }
+  ],
+  "salvage": {
+    "socketCurrency": "Artificer's Shard",
+    "perSocket": 1,
+    "qualityStep": 5,
+    "excludedCategories": [ "Gem", "Jewel", "Currency", "Map", "Waystone" ],
+    "excludedItemClasses": [ "Rings", "Amulets", "Belts" ],
+    "quality": [
+      {
+        "itemClasses": [ "Body Armours", "Helmets", "Gloves", "Boots", "Shields", "Bucklers", "Foci" ],
+        "currency": "Armourer's Scrap"
+      },
+      {
+        "itemClasses": [ "One Hand Maces", "Two Hand Maces", "One Hand Swords", "Two Hand Swords", "One Hand Axes", "Two Hand Axes", "Bows", "Crossbows", "Quarterstaves", "Spears", "Flails", "Claws", "Daggers", "Quivers" ],
+        "currency": "Blacksmith's Whetstone"
+      },
+      {
+        "itemClasses": [ "Wands", "Staves", "Sceptres" ],
+        "currency": "Arcanist's Etcher"
+      },
+      {
+        "itemClasses": [ "Life Flasks", "Mana Flasks" ],
+        "currency": "Glassblower's Bauble"
+      }
+    ]
+  },
+  "vendor": [],
+  "units": [
+    { "name": "Transmutation Shard", "fullCurrency": "Orb of Transmutation", "stackToFull": 10 },
+    { "name": "Regal Shard", "fullCurrency": "Regal Orb", "stackToFull": 10 },
+    { "name": "Chance Shard", "fullCurrency": "Orb of Chance", "stackToFull": 10 },
+    { "name": "Artificer's Shard", "fullCurrency": "Artificer's Orb", "stackToFull": 10 }
+  ]
+}

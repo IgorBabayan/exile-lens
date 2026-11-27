@@ -1,0 +1,70 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ExileLens.App.ViewModels"
+             x:Class="ExileLens.App.Views.HistoryView"
+             x:DataType="vm:HistoryViewModel">
+  <DockPanel Margin="{DynamicResource PagePadding}">
+    <StackPanel DockPanel.Dock="Top" Spacing="12" Margin="0,0,0,8">
+      <TextBlock Text="History" Classes="display" />
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <TextBox Text="{Binding SearchText}" Width="280" PlaceholderText="Search items, maps or modifiers" />
+        <ComboBox ItemsSource="{Binding GameFilters}" SelectedItem="{Binding SelectedGameFilter}" />
+        <Button Content="Clear history" Command="{Binding ClearCommand}" />
+      </StackPanel>
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <TextBlock Text="Keep the last" Classes="secondary" VerticalAlignment="Center" />
+        <NumericUpDown Value="{Binding MaxPriceChecks}" Minimum="10" Maximum="5000" Increment="50" Width="130" FormatString="0" />
+        <TextBlock Text="price checks and" Classes="secondary" VerticalAlignment="Center" />
+        <NumericUpDown Value="{Binding MaxMapChecks}" Minimum="10" Maximum="5000" Increment="50" Width="130" FormatString="0" />
+        <TextBlock Text="map checks" Classes="secondary" VerticalAlignment="Center" />
+      </StackPanel>
+    </StackPanel>
+    <TabControl SelectedIndex="{Binding SelectedTab}">
+      <TabItem Header="Price checks">
+        <ListBox Classes="plain" ItemsSource="{Binding PriceRows}">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:PriceHistoryRow">
+              <Border Classes="panel" Padding="14,10">
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel Spacing="2">
+                    <TextBlock Text="{Binding Item}" FontWeight="Medium" />
+                    <TextBlock Text="{Binding Detail}" Classes="secondary" />
+                    <TextBlock Text="{Binding Disenchant, StringFormat='Disenchant: {0}'}" Classes="caption"
+                               IsVisible="{Binding Disenchant, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" HorizontalAlignment="Right" Spacing="2">
+                    <TextBlock Text="{Binding Value}" FontWeight="Medium" HorizontalAlignment="Right" />
+                    <TextBlock Text="{Binding When}" Classes="caption" HorizontalAlignment="Right" />
+                    <TextBlock Text="{Binding Game}" Classes="caption" HorizontalAlignment="Right" />
+                  </StackPanel>
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </TabItem>
+      <TabItem Header="Map checks">
+        <ListBox Classes="plain" ItemsSource="{Binding MapRows}">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:MapHistoryRow">
+              <Border Classes="panel" Padding="14,10">
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel Spacing="2">
+                    <TextBlock Text="{Binding Map}" FontWeight="Medium" />
+                    <TextBlock Text="{Binding Modifiers}" Classes="secondary" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding Profile, StringFormat='Profile: {0}'}" Classes="caption" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" HorizontalAlignment="Right" Spacing="2" Margin="12,0,0,0">
+                    <TextBlock Text="{Binding Overall}" FontWeight="Medium" HorizontalAlignment="Right" />
+                    <TextBlock Text="{Binding When}" Classes="caption" HorizontalAlignment="Right" />
+                    <TextBlock Text="{Binding Game}" Classes="caption" HorizontalAlignment="Right" />
+                  </StackPanel>
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </TabItem>
+    </TabControl>
+  </DockPanel>
+</UserControl>

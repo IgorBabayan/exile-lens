@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CA1707;CA2201;CA1001;CA1849;CA2000</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MSTest" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ExileLens.Core\ExileLens.Core.csproj" />
+    <ProjectReference Include="..\..\src\ExileLens.Application\ExileLens.Application.csproj" />
+    <ProjectReference Include="..\..\src\ExileLens.Infrastructure\ExileLens.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\ExileLens.Game.Poe1\ExileLens.Game.Poe1.csproj" />
+    <ProjectReference Include="..\..\src\ExileLens.Game.Poe2\ExileLens.Game.Poe2.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Fixtures\**\*.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,15 @@
+Item Class: Rings
+Rarity: Rare
+Doom Circle
+Gold Ring
+--------
+Requires: Level 60
+--------
+Item Level: 82
+--------
+8% increased Rarity of Items found (implicit)
+--------
++85 to maximum Life
++32% to Fire Resistance
++28% to Cold Resistance
++24% to Lightning Resistance

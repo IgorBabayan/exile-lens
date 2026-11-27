@@ -1,0 +1,249 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ExileLens.App.ViewModels"
+             xmlns:conv="using:ExileLens.App.Views"
+             x:Class="ExileLens.App.Views.SettingsView"
+             x:DataType="vm:SettingsViewModel">
+  <UserControl.Styles>
+    <Style Selector="TextBlock.label">
+      <Setter Property="Width" Value="230" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="StackPanel.row">
+      <Setter Property="Orientation" Value="Horizontal" />
+      <Setter Property="Spacing" Value="10" />
+      <Setter Property="MinHeight" Value="34" />
+    </Style>
+  </UserControl.Styles>
+  <ScrollViewer>
+    <StackPanel Margin="{DynamicResource PagePadding}" Spacing="16" MaxWidth="900" HorizontalAlignment="Left">
+      <TextBlock Text="Settings" Classes="display" />
+
+      <!-- General -->
+      <Border Classes="panel">
+        <StackPanel Spacing="8">
+          <TextBlock Text="General" Classes="subtitle" />
+          <StackPanel Classes="row">
+            <TextBlock Classes="label" Text="Game" />
+            <ComboBox ItemsSource="{Binding GameSelections}" SelectedItem="{Binding SelectedGameMode}">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:GameSelectionOption"><TextBlock Text="{Binding Label}" /></DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </StackPanel>
+          <StackPanel Classes="row">
+            <TextBlock Classes="label" Text="Preferred game when not running" />
+            <ComboBox ItemsSource="{Binding GameOptions}" SelectedItem="{Binding PreferredGame}">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:GameOption"><TextBlock Text="{Binding Name}" /></DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </StackPanel>
+          <StackPanel Classes="row">
+            <TextBlock Classes="label" Text="Language" />
+            <ComboBox ItemsSource="{Binding Languages}" SelectedItem="{Binding Language}" />
+          </StackPanel>
+          <ToggleSwitch IsChecked="{Binding StartWithSystem}" OnContent="Start with the operating system" OffContent="Start with the operating system" />
+          <TextBlock Text="{Binding AutoStartNote}" Classes="caption" IsVisible="{Binding AutoStartNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+          <ToggleSwitch IsChecked="{Binding StartMinimized}" OnContent="Start minimized to the tray" OffContent="Start minimized to the tray" />
+          <ToggleSwitch IsChecked="{Binding MinimizeToTray}" OnContent="Minimize to the system tray" OffContent="Minimize to the system tray" />
+          <ToggleSwitch IsChecked="{Binding CloseToTray}" OnContent="Closing the window keeps shortcuts running in the tray" OffContent="Closing the window keeps shortcuts running in the tray" />
+          <ToggleSwitch IsChecked="{Binding UseAdvancedCopy}" OnContent="Use advanced item copy (exact affix counts)" OffContent="Use advanced item copy (exact affix counts)" />
+        </StackPanel>
+      </Border>
+
+      <!-- Appearance -->
+      <Border Classes="panel">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Appearance" Classes="subtitle" />
+          <StackPanel Classes="row">
+            <TextBlock Classes="label" Text="Theme" />
+            <ComboBox ItemsSource="{Binding Themes}" SelectedItem="{Binding Theme}">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:ThemeOption"><TextBlock Text="{Binding Label}" /></DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </StackPanel>
+          <StackPanel Classes="row">
+            <TextBlock Classes="label" Text="Accent color" />
+            <TextBox Text="{Binding AccentColor}" Width="110" />
+            <ItemsControl ItemsSource="{Binding AccentPresets}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="6" /></ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="x:String">
+                  <Button Classes="icon" Padding="2" ToolTip.Tip="{Binding}"
+                          Command="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).UseAccentCommand}" CommandParameter="{Binding}">
+                    <Border Width="20" Height="20" CornerRadius="10" Background="{Binding Converter={x:Static conv:Converters.ColorToBrush}}" />
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+          <StackPanel Classes="row">
+            <TextBlock Classes="label" Text="Font size" />
+            <Slider Value="{Binding FontSize}" Minimum="11" Maximum="17" Width="220" TickFrequency="0.5" IsSnapToTickEnabled="True" />
+            <TextBlock Text="{Binding FontSize, StringFormat='{}{0:0.#} pt'}" VerticalAlignment="Center" Classes="secondary" />
+          </StackPanel>
+          <StackPanel Classes="row">
+            <TextBlock Classes="label" Text="Overlay scale" />
+            <Slider Value="{Binding OverlayScale}" Minimum="0.75" Maximum="1.6" Width="220" TickFrequency="0.05" IsSnapToTickEnabled="True" />
+            <TextBlock Text="{Binding OverlayScale, StringFormat='{}{0:P0}'}" VerticalAlignment="Center" Classes="secondary" />
+          </StackPanel>
+          <StackPanel Classes="row">
+            <TextBlock Classes="label" Text="Overlay opacity" />
+            <Slider Value="{Binding OverlayOpacity}" Minimum="0.5" Maximum="1" Width="220" TickFrequency="0.02" IsSnapToTickEnabled="True" />
+            <TextBlock Text="{Binding OverlayOpacity, StringFormat='{}{0:P0}'}" VerticalAlignment="Center" Classes="secondary" />
+          </StackPanel>
+          <StackPanel Classes="row">
+            <TextBlock Classes="label" Text="Overlay position" />
+            <ComboBox ItemsSource="{Binding Placements}" SelectedItem="{Binding Placement}">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:PlacementOption"><TextBlock Text="{Binding Label}" /></DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </StackPanel>
+          <ToggleSwitch IsChecked="{Binding AnimationsEnabled}" OnContent="Animations" OffContent="Animations" />
+          <ToggleSwitch IsChecked="{Binding CloseOnClickOutside}" OnContent="Close the overlay when clicking elsewhere" OffContent="Close the overlay when clicking elsewhere" />
+          <ToggleSwitch IsChecked="{Binding CloseOnGameFocusLoss}" OnContent="Close the overlay when the game loses focus" OffContent="Close the overlay when the game loses focus" />
+        </StackPanel>
+      </Border>
+
+      <!-- Shortcuts & league -->
+      <Border Classes="panel">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Keyboard shortcuts &amp; league" Classes="subtitle" />
+          <TextBlock Classes="caption" TextWrapping="Wrap"
+                     Text="Click a field and press the key combination. Shortcuts only act while the game window is focused; elsewhere the keys reach other apps normally." />
+          <StackPanel Classes="row">
+            <TextBlock Classes="label" Text="Game" />
+            <ComboBox ItemsSource="{Binding GameOptions}" SelectedItem="{Binding ShortcutGame}">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:GameOption"><TextBlock Text="{Binding Name}" /></DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </StackPanel>
+          <StackPanel Classes="row">
+            <TextBlock Classes="label" Text="Price check" />
+            <TextBox Classes="shortcut" Text="{Binding PriceCheckHotkey}" Width="200" IsReadOnly="True" />
+          </StackPanel>
+          <StackPanel Classes="row">
+            <TextBlock Classes="label" Text="Map modifier check" />
+            <TextBox Classes="shortcut" Text="{Binding MapCheckHotkey}" Width="200" IsReadOnly="True" />
+          </StackPanel>
+          <StackPanel Classes="row">
+            <TextBlock Classes="label" Text="Close overlay" />
+            <TextBox Classes="shortcut" Text="{Binding CloseOverlayHotkey}" Width="200" IsReadOnly="True" />
+            <Button Content="Reset to defaults" Command="{Binding ResetShortcutsCommand}" />
+          </StackPanel>
+          <TextBlock Text="{Binding ShortcutError}" Foreground="{DynamicResource WarningBrush}" TextWrapping="Wrap"
+                     IsVisible="{Binding ShortcutError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+          <StackPanel Classes="row">
+            <TextBlock Classes="label" Text="Active league" />
+            <AutoCompleteBox ItemsSource="{Binding LeagueOptions}" Text="{Binding League}" Width="260" FilterMode="Contains" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <!-- Trade -->
+      <Border Classes="panel">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Trade" Classes="subtitle" />
+          <StackPanel Classes="row">
+            <TextBlock Classes="label" Text="Market data" />
+            <TextBlock Text="{Binding MarketProvider}" Classes="secondary" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="560" />
+          </StackPanel>
+          <StackPanel Classes="row">
+            <TextBlock Classes="label" Text="Preferred currency" />
+            <TextBox Text="{Binding PreferredCurrency}" Width="220" PlaceholderText="Game default" />
+          </StackPanel>
+          <StackPanel Classes="row">
+            <TextBlock Classes="label" Text="Listings to fetch" />
+            <NumericUpDown Value="{Binding MaxListings}" Minimum="5" Maximum="100" Increment="5" Width="130" FormatString="0" />
+          </StackPanel>
+          <StackPanel Classes="row">
+            <TextBlock Classes="label" Text="Cache results for (minutes)" />
+            <NumericUpDown Value="{Binding CacheMinutes}" Minimum="0" Maximum="120" Increment="1" Width="130" FormatString="0" />
+          </StackPanel>
+          <StackPanel Classes="row">
+            <TextBlock Classes="label" Text="Minimum trade value" />
+            <TextBox Text="{Binding MinimumTradeValue}" Width="100" />
+          </StackPanel>
+          <StackPanel Classes="row">
+            <TextBlock Classes="label" Text="Default modifier minimum" />
+            <Slider Value="{Binding ModifierMinPercent}" Minimum="50" Maximum="100" Width="220" TickFrequency="5" IsSnapToTickEnabled="True" />
+            <TextBlock Text="{Binding ModifierMinPercent, StringFormat='{}{0:0}% of rolled value'}" VerticalAlignment="Center" Classes="secondary" />
+          </StackPanel>
+          <ToggleSwitch IsChecked="{Binding AutoSearch}" OnContent="Search automatically when the overlay opens" OffContent="Search automatically when the overlay opens" />
+          <ToggleSwitch IsChecked="{Binding EnableModifiersByDefault}" OnContent="Enable modifier filters by default" OffContent="Enable modifier filters by default" />
+          <ToggleSwitch IsChecked="{Binding OnlineOnly}" OnContent="Only online sellers" OffContent="Only online sellers" />
+          <StackPanel Classes="row">
+            <TextBlock Classes="label" Text="poe.ninja proxy (optional)" />
+            <TextBox Text="{Binding NinjaBaseUrl}" Width="320" PlaceholderText="https://poe.ninja" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <!-- Map modifiers -->
+      <Border Classes="panel">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Map modifiers" Classes="subtitle" />
+          <TextBlock Classes="caption" TextWrapping="Wrap" Text="Profiles, thresholds and dangerous combinations are managed on the Map Modifiers page." />
+          <StackPanel Classes="row">
+            <TextBlock Classes="label" Text="Safe" />
+            <TextBox Text="{Binding SafeColor}" Width="110" />
+            <Border Width="20" Height="20" CornerRadius="10" Background="{Binding SafeColor, Converter={x:Static conv:Converters.ColorToBrush}}" />
+          </StackPanel>
+          <StackPanel Classes="row">
+            <TextBlock Classes="label" Text="Warning" />
+            <TextBox Text="{Binding WarningColor}" Width="110" />
+            <Border Width="20" Height="20" CornerRadius="10" Background="{Binding WarningColor, Converter={x:Static conv:Converters.ColorToBrush}}" />
+          </StackPanel>
+          <StackPanel Classes="row">
+            <TextBlock Classes="label" Text="Dangerous" />
+            <TextBox Text="{Binding DangerousColor}" Width="110" />
+            <Border Width="20" Height="20" CornerRadius="10" Background="{Binding DangerousColor, Converter={x:Static conv:Converters.ColorToBrush}}" />
+          </StackPanel>
+          <StackPanel Classes="row">
+            <TextBlock Classes="label" Text="Unclassified" />
+            <TextBox Text="{Binding UnclassifiedColor}" Width="110" />
+            <Border Width="20" Height="20" CornerRadius="10" Background="{Binding UnclassifiedColor, Converter={x:Static conv:Converters.ColorToBrush}}" />
+          </StackPanel>
+          <ToggleSwitch IsChecked="{Binding SortByDanger}" OnContent="Sort modifiers by danger level" OffContent="Sort modifiers by danger level" />
+        </StackPanel>
+      </Border>
+
+      <!-- Disenchantment -->
+      <Border Classes="panel">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Disenchantment" Classes="subtitle" />
+          <ToggleSwitch IsChecked="{Binding DisenchantEnabled}" OnContent="Estimate disenchantment / vendor rewards" OffContent="Estimate disenchantment / vendor rewards" />
+          <ToggleSwitch IsChecked="{Binding SalvageEnabled}" OnContent="Estimate salvage rewards" OffContent="Estimate salvage rewards" />
+          <ToggleSwitch IsChecked="{Binding ShowComparison}" OnContent="Show value comparison" OffContent="Show value comparison" />
+          <ToggleSwitch IsChecked="{Binding ShowSuggestedAction}" OnContent="Show suggested action" OffContent="Show suggested action" />
+        </StackPanel>
+      </Border>
+
+      <!-- Updates -->
+      <Border Classes="panel">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Updates" Classes="subtitle" />
+          <TextBlock Text="{Binding CurrentVersion, StringFormat='Installed version {0}'}" Classes="secondary" />
+          <ToggleSwitch IsChecked="{Binding CheckForUpdatesOnStart}" OnContent="Check for updates automatically" OffContent="Check for updates automatically" />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="Check for updates" Command="{Binding CheckUpdatesCommand}" IsEnabled="{Binding !IsBusy}" />
+            <Button Classes="accent" Content="Download and install" Command="{Binding InstallUpdateCommand}" IsVisible="{Binding CanInstall}" IsEnabled="{Binding !IsBusy}" />
+            <Button Content="Release page" Command="{Binding OpenReleasePageCommand}"
+                    IsVisible="{Binding ReleaseNotes, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+          </StackPanel>
+          <ProgressBar Value="{Binding DownloadProgress}" Maximum="100" IsVisible="{Binding IsBusy}" Height="4" />
+          <TextBlock Text="{Binding UpdateStatus}" TextWrapping="Wrap" IsVisible="{Binding UpdateStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+          <Border Classes="card" IsVisible="{Binding ReleaseNotes, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+            <TextBlock Text="{Binding ReleaseNotes}" TextWrapping="Wrap" Classes="secondary" />
+          </Border>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

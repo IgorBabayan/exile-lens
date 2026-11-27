@@ -1,0 +1,20 @@
+Item Class: Waystones
+Rarity: Rare
+Haunted Haven
+Waystone (Tier 15)
+--------
+Waystone Tier: 15
+Waystone Drop Chance: +120% (augmented)
+Item Quantity: +48% (augmented)
+Item Rarity: +30% (augmented)
+Monster Pack Size: +12% (augmented)
+--------
+Item Level: 79
+--------
+Players have 40% less Recovery Rate of Life and Energy Shield
+Monsters deal 25% of Damage as Extra Fire
+Monsters have 30% increased Attack Speed
+Monsters have 40% increased maximum Life
+Monsters have 50% increased Stun Threshold
+--------
+Can be used in a Map Device, allowing you to enter a Map. Waystones can only be used once.

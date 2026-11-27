@@ -1,0 +1,405 @@
+using System.Collections.ObjectModel;
+using System.Globalization;
+using System.Runtime.CompilerServices;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using ExileLens.Application.Capture;
+using ExileLens.Application.Games;
+using ExileLens.Application.Market;
+using ExileLens.Application.Platform;
+using ExileLens.Application.Settings;
+using ExileLens.Application.Updates;
+using ExileLens.Core.Items;
+
+namespace ExileLens.App.ViewModels;
+
+public sealed record GameSelectionOption(GameSelection Value, string Label);
+
+public sealed record ThemeOption(ThemeMode Value, string Label);
+
+public sealed record PlacementOption(OverlayPlacement Value, string Label);
+
+public sealed partial class SettingsViewModel : PageViewModel
+{
+    private readonly ISettingsService _settings;
+    private readonly IGameRegistry _games;
+    private readonly ILeagueService _leagues;
+    private readonly IAutoStartService _autoStart;
+    private readonly IUpdateService _updates;
+    private UpdateInfo? _update;
+
+    public SettingsViewModel(ISettingsService settings, IGameRegistry games, ILeagueService leagues, IAutoStartService autoStart, IUpdateService updates)
+    {
+        _settings = settings;
+        _games = games;
+        _leagues = leagues;
+        _autoStart = autoStart;
+        _updates = updates;
+        GameOptions = games.All.Select(g => new GameOption(g.Game, g.DisplayName)).ToList();
+        _shortcutGame = GameOptions[^1];
+        CurrentVersion = updates.CurrentVersion.ToString();
+    }
+
+    public IReadOnlyList<GameSelectionOption> GameSelections { get; } =
+    [
+        new(GameSelection.Auto, "Detect automatically"),
+        new(GameSelection.Poe1, "Path of Exile"),
+        new(GameSelection.Poe2, "Path of Exile 2"),
+    ];
+
+    public IReadOnlyList<GameOption> GameOptions { get; }
+
+    public IReadOnlyList<ThemeOption> Themes { get; } = [new(ThemeMode.System, "Follow system"), new(ThemeMode.Light, "Light"), new(ThemeMode.Dark, "Dark")];
+
+    public IReadOnlyList<PlacementOption> Placements { get; } =
+    [
+        new(OverlayPlacement.NearCursor, "Next to the cursor"),
+        new(OverlayPlacement.LeftOfGame, "Left side of the game"),
+        new(OverlayPlacement.RightOfGame, "Right side of the game"),
+        new(OverlayPlacement.CenterOfGame, "Center of the game"),
+    ];
+
+    public IReadOnlyList<string> Languages { get; } = ["English"];
+
+    public IReadOnlyList<string> AccentPresets { get; } = ["#C96442", "#B0623F", "#7D8F69", "#5B7DB1", "#8B6BB5", "#B5895B"];
+
+    public string CurrentVersion { get; }
+
+    public string MarketProvider => "poe.ninja (currency & bulk items) + official trade (item listings)";
+
+    public string? AutoStartNote => _autoStart.IsSupported ? null : "Start with the operating system is not supported on this platform.";
+
+    // ---------- General ----------
+    public GameSelectionOption SelectedGameMode
+    {
+        get => GameSelections.First(o => o.Value == _settings.Current.General.Game);
+        set => Set(s => s.General.Game = value.Value);
+    }
+
+    public GameOption PreferredGame
+    {
+        get => GameOptions.First(o => o.Game == _settings.Current.General.PreferredGame);
+        set => Set(s => s.General.PreferredGame = value.Game);
+    }
+
+    public bool StartWithSystem
+    {
+        get => _settings.Current.General.StartWithSystem;
+        set
+        {
+            Set(s => s.General.StartWithSystem = value);
+            if (_autoStart.IsSupported)
+            {
+                _autoStart.SetEnabled(value, _settings.Current.General.StartMinimized);
+            }
+        }
+    }
+
+    public bool StartMinimized
+    {
+        get => _settings.Current.General.StartMinimized;
+        set
+        {
+            Set(s => s.General.StartMinimized = value);
+            if (_autoStart.IsSupported && _settings.Current.General.StartWithSystem)
+            {
+                _autoStart.SetEnabled(true, value);
+            }
+        }
+    }
+
+    public bool MinimizeToTray { get => _settings.Current.General.MinimizeToTray; set => Set(s => s.General.MinimizeToTray = value); }
+
+    public bool CloseToTray { get => _settings.Current.General.CloseToTray; set => Set(s => s.General.CloseToTray = value); }
+
+    public bool UseAdvancedCopy { get => _settings.Current.General.UseAdvancedCopy; set => Set(s => s.General.UseAdvancedCopy = value); }
+
+    public string Language { get => "English"; set => Set(s => s.General.Language = "en"); }
+
+    // ---------- Appearance ----------
+    public ThemeOption Theme
+    {
+        get => Themes.First(t => t.Value == _settings.Current.Appearance.Theme);
+        set => Set(s => s.Appearance.Theme = value.Value);
+    }
+
+    public string AccentColor
+    {
+        get => _settings.Current.Appearance.AccentColor;
+        set
+        {
+            if (Avalonia.Media.Color.TryParse(value, out _))
+            {
+                Set(s => s.Appearance.AccentColor = value);
+            }
+        }
+    }
+
+    [RelayCommand]
+    private void UseAccent(string hex) => AccentColor = hex;
+
+    public double FontSize { get => _settings.Current.Appearance.FontSize; set => Set(s => s.Appearance.FontSize = Math.Round(Math.Clamp(value, 11, 17), 1)); }
+
+    public double OverlayScale { get => _settings.Current.Appearance.OverlayScale; set => Set(s => s.Appearance.OverlayScale = Math.Round(Math.Clamp(value, 0.75, 1.6), 2)); }
+
+    public double OverlayOpacity { get => _settings.Current.Appearance.OverlayOpacity; set => Set(s => s.Appearance.OverlayOpacity = Math.Round(Math.Clamp(value, 0.5, 1), 2)); }
+
+    public bool AnimationsEnabled { get => _settings.Current.Appearance.AnimationsEnabled; set => Set(s => s.Appearance.AnimationsEnabled = value); }
+
+    public PlacementOption Placement
+    {
+        get => Placements.First(p => p.Value == _settings.Current.Appearance.OverlayPlacement);
+        set => Set(s => s.Appearance.OverlayPlacement = value.Value);
+    }
+
+    public bool CloseOnClickOutside { get => _settings.Current.Appearance.CloseOverlayOnClickOutside; set => Set(s => s.Appearance.CloseOverlayOnClickOutside = value); }
+
+    public bool CloseOnGameFocusLoss { get => _settings.Current.Appearance.CloseOverlayOnGameFocusLoss; set => Set(s => s.Appearance.CloseOverlayOnGameFocusLoss = value); }
+
+    // ---------- Shortcuts (per game) ----------
+    [ObservableProperty]
+    private GameOption _shortcutGame;
+
+    [ObservableProperty]
+    private string? _shortcutError;
+
+    partial void OnShortcutGameChanged(GameOption value)
+    {
+        OnPropertyChanged(nameof(PriceCheckHotkey));
+        OnPropertyChanged(nameof(MapCheckHotkey));
+        OnPropertyChanged(nameof(CloseOverlayHotkey));
+        OnPropertyChanged(nameof(League));
+        _ = LoadLeaguesAsync();
+    }
+
+    public string PriceCheckHotkey { get => G.PriceCheckHotkey; set => SetShortcut(g => g.PriceCheckHotkey = value); }
+
+    public string MapCheckHotkey { get => G.MapCheckHotkey; set => SetShortcut(g => g.MapCheckHotkey = value); }
+
+    public string CloseOverlayHotkey { get => G.CloseOverlayHotkey; set => SetShortcut(g => g.CloseOverlayHotkey = value); }
+
+    private GameSettings G => _settings.Current.For(ShortcutGame.Game);
+
+    private void SetShortcut(Action<GameSettings> mutate, [CallerMemberName] string? name = null)
+    {
+        // Validate on a copy so conflicts are reported before they take effect.
+        var copy = new GameSettings { PriceCheckHotkey = G.PriceCheckHotkey, MapCheckHotkey = G.MapCheckHotkey, CloseOverlayHotkey = G.CloseOverlayHotkey };
+        mutate(copy);
+        var errors = GameActionCoordinator.Validate(copy, out _);
+        ShortcutError = errors.Count == 0 ? null : string.Join(Environment.NewLine, errors.Select(e => $"{GameActionCoordinator.Describe(e.Key)}: {e.Value}"));
+        if (errors.Count == 0)
+        {
+            var game = ShortcutGame.Game;
+            _settings.Update(s => mutate(s.For(game)));
+        }
+
+        OnPropertyChanged(name);
+    }
+
+    [RelayCommand]
+    private void ResetShortcuts()
+    {
+        var game = ShortcutGame.Game;
+        _settings.Update(s =>
+        {
+            var g = s.For(game);
+            g.PriceCheckHotkey = "Ctrl+D";
+            g.MapCheckHotkey = "Alt+D";
+            g.CloseOverlayHotkey = "Escape";
+        });
+        ShortcutError = null;
+        OnShortcutGameChanged(ShortcutGame);
+    }
+
+    // ---------- League ----------
+    public ObservableCollection<string> LeagueOptions { get; } = [];
+
+    public string? League
+    {
+        get => G.League;
+        set
+        {
+            var game = ShortcutGame.Game;
+            _settings.Update(s => s.For(game).League = string.IsNullOrWhiteSpace(value) ? null : value);
+            OnPropertyChanged();
+        }
+    }
+
+    private async Task LoadLeaguesAsync()
+    {
+        var leagues = await _leagues.GetLeaguesAsync(_games.Get(ShortcutGame.Game), CancellationToken.None);
+        LeagueOptions.Clear();
+        foreach (var l in leagues)
+        {
+            LeagueOptions.Add(l.Id);
+        }
+
+        OnPropertyChanged(nameof(League));
+    }
+
+    // ---------- Trade ----------
+    public string PreferredCurrency
+    {
+        get => _settings.Current.Rewards.ValuationCurrency ?? string.Empty;
+        set => Set(s => s.Rewards.ValuationCurrency = string.IsNullOrWhiteSpace(value) ? null : value.Trim());
+    }
+
+    public decimal? MaxListings { get => _settings.Current.Trade.MaxListings; set => Set(s => s.Trade.MaxListings = (int)Math.Clamp(value ?? 20, 5, 100)); }
+
+    public decimal? CacheMinutes { get => _settings.Current.Trade.CacheMinutes; set => Set(s => s.Trade.CacheMinutes = (int)Math.Clamp(value ?? 5, 0, 120)); }
+
+    public bool AutoSearch { get => _settings.Current.Trade.AutoSearch; set => Set(s => s.Trade.AutoSearch = value); }
+
+    public string MinimumTradeValue
+    {
+        get => Formatting.Amount(_settings.Current.Trade.MinimumTradeValue);
+        set
+        {
+            if (decimal.TryParse(value?.Replace(',', '.'), NumberStyles.Number, CultureInfo.InvariantCulture, out var d) && d >= 0)
+            {
+                Set(s => s.Trade.MinimumTradeValue = d);
+            }
+        }
+    }
+
+    public double ModifierMinPercent { get => _settings.Current.Trade.ModifierMinPercent; set => Set(s => s.Trade.ModifierMinPercent = Math.Round(Math.Clamp(value, 50, 100))); }
+
+    public bool EnableModifiersByDefault { get => _settings.Current.Trade.EnableModifiersByDefault; set => Set(s => s.Trade.EnableModifiersByDefault = value); }
+
+    public bool OnlineOnly { get => _settings.Current.Trade.OnlineOnly; set => Set(s => s.Trade.OnlineOnly = value); }
+
+    public string NinjaBaseUrl
+    {
+        get => _settings.Current.Trade.NinjaBaseUrl ?? string.Empty;
+        set => Set(s => s.Trade.NinjaBaseUrl = Uri.TryCreate(value, UriKind.Absolute, out var u) && u.Scheme == Uri.UriSchemeHttps ? value.TrimEnd('/') : null);
+    }
+
+    // ---------- Map modifier colors ----------
+    public string SafeColor { get => _settings.Current.Maps.SafeColor; set => SetColor(value, (s, v) => s.Maps.SafeColor = v); }
+
+    public string WarningColor { get => _settings.Current.Maps.WarningColor; set => SetColor(value, (s, v) => s.Maps.WarningColor = v); }
+
+    public string DangerousColor { get => _settings.Current.Maps.DangerousColor; set => SetColor(value, (s, v) => s.Maps.DangerousColor = v); }
+
+    public string UnclassifiedColor { get => _settings.Current.Maps.UnclassifiedColor; set => SetColor(value, (s, v) => s.Maps.UnclassifiedColor = v); }
+
+    public bool SortByDanger { get => _settings.Current.Maps.SortByDanger; set => Set(s => s.Maps.SortByDanger = value); }
+
+    // ---------- Disenchantment ----------
+    public bool DisenchantEnabled { get => _settings.Current.Rewards.DisenchantEnabled; set => Set(s => s.Rewards.DisenchantEnabled = value); }
+
+    public bool SalvageEnabled { get => _settings.Current.Rewards.SalvageEnabled; set => Set(s => s.Rewards.SalvageEnabled = value); }
+
+    public bool ShowComparison { get => _settings.Current.Rewards.ShowComparison; set => Set(s => s.Rewards.ShowComparison = value); }
+
+    public bool ShowSuggestedAction { get => _settings.Current.Rewards.ShowSuggestedAction; set => Set(s => s.Rewards.ShowSuggestedAction = value); }
+
+    // ---------- Updates ----------
+    public bool CheckForUpdatesOnStart { get => _settings.Current.General.CheckForUpdates; set => Set(s => s.General.CheckForUpdates = value); }
+
+    [ObservableProperty]
+    private string? _updateStatus;
+
+    [ObservableProperty]
+    private string? _releaseNotes;
+
+    [ObservableProperty]
+    private bool _canInstall;
+
+    [ObservableProperty]
+    private bool _isBusy;
+
+    [ObservableProperty]
+    private double _downloadProgress;
+
+    [RelayCommand]
+    private async Task CheckUpdatesAsync()
+    {
+        IsBusy = true;
+        UpdateStatus = "Checking for updates…";
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            _update = await _updates.CheckAsync(cts.Token);
+            if (_update is null)
+            {
+                UpdateStatus = $"You're up to date ({_updates.CurrentVersion}).";
+                ReleaseNotes = null;
+                CanInstall = false;
+            }
+            else
+            {
+                UpdateStatus = $"Version {_update.Version} is available.";
+                ReleaseNotes = _update.ReleaseNotes;
+                CanInstall = _update.ExpectedSha256 is not null;
+                if (!CanInstall)
+                {
+                    UpdateStatus += " It has no published checksum, so it can only be downloaded manually from the release page.";
+                }
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or System.Text.Json.JsonException)
+        {
+            UpdateStatus = "Could not reach GitHub to check for updates.";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>Runs only when the user clicks "Download and install" (explicit confirmation).</summary>
+    [RelayCommand]
+    private async Task InstallUpdateAsync()
+    {
+        if (_update is null)
+        {
+            return;
+        }
+
+        IsBusy = true;
+        try
+        {
+            var progress = new Progress<double>(p => DownloadProgress = p * 100);
+            var path = await _updates.DownloadAsync(_update, progress, CancellationToken.None);
+            UpdateStatus = "Download verified. Starting the installer — your settings and profiles are kept.";
+            await _settings.FlushAsync();
+            _updates.Install(path);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidDataException or InvalidOperationException or IOException)
+        {
+            UpdateStatus = $"Update failed: {ex.Message} Your current version is unchanged.";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private void OpenReleasePage()
+    {
+        if (_update is not null)
+        {
+            Formatting.OpenUrl(_update.HtmlUrl);
+        }
+    }
+
+    public override void OnActivated() => _ = LoadLeaguesAsync();
+
+    private void Set(Action<AppSettings> mutate, [CallerMemberName] string? name = null)
+    {
+        _settings.Update(mutate);
+        OnPropertyChanged(name);
+    }
+
+    private void SetColor(string value, Action<AppSettings, string> apply, [CallerMemberName] string? name = null)
+    {
+        if (Avalonia.Media.Color.TryParse(value, out _))
+        {
+            _settings.Update(s => apply(s, value));
+        }
+
+        OnPropertyChanged(name);
+    }
+}

@@ -1,0 +1,59 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ExileLens.App.ViewModels"
+        x:Class="ExileLens.App.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="Exile Lens"
+        Width="1100" Height="740" MinWidth="820" MinHeight="560"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource AppBackgroundBrush}">
+  <Grid ColumnDefinitions="Auto,*">
+    <!-- Sidebar -->
+    <Border Grid.Column="0"
+            Width="{Binding SidebarWidth}"
+            Background="{DynamicResource SidebarBrush}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="0,0,1,0"
+            ClipToBounds="True">
+      <Border.Transitions>
+        <Transitions>
+          <DoubleTransition Property="Width" Duration="{StaticResource DurationSlow}" Easing="CubicEaseOut" />
+        </Transitions>
+      </Border.Transitions>
+      <DockPanel Margin="10,14,10,12">
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto" Margin="4,0,0,18">
+          <Image Grid.Column="0" Source="avares://ExileLens/Assets/icon.png" Width="24" Height="24" />
+          <TextBlock Grid.Column="1" Text="Exile Lens" FontWeight="SemiBold" FontSize="15" Margin="10,0,0,0"
+                     VerticalAlignment="Center" IsVisible="{Binding !IsSidebarCollapsed}" />
+          <Button Grid.Column="2" Classes="icon" Command="{Binding ToggleSidebarCommand}" ToolTip.Tip="Collapse sidebar"
+                  IsVisible="{Binding !IsSidebarCollapsed}">
+            <Path Classes="icon" Data="M15,6 L9,12 L15,18" />
+          </Button>
+        </Grid>
+        <StackPanel DockPanel.Dock="Bottom" Spacing="6">
+          <Button Classes="icon" HorizontalAlignment="Left" Command="{Binding ToggleSidebarCommand}" ToolTip.Tip="Expand sidebar"
+                  IsVisible="{Binding IsSidebarCollapsed}" Margin="6,0,0,0">
+            <Path Classes="icon" Data="{StaticResource IconChevron}" />
+          </Button>
+        </StackPanel>
+        <ListBox Classes="nav" ItemsSource="{Binding NavItems}" SelectedItem="{Binding Selected}">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:NavItem">
+              <StackPanel Orientation="Horizontal" Spacing="12" ToolTip.Tip="{Binding Title}">
+                <Path Classes="icon" Data="{Binding Icon}" />
+                <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
+              </StackPanel>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </DockPanel>
+    </Border>
+
+    <!-- Content -->
+    <TransitioningContentControl x:Name="Pages" Grid.Column="1" Content="{Binding CurrentPage}">
+      <TransitioningContentControl.PageTransition>
+        <CrossFade Duration="0:0:0.15" />
+      </TransitioningContentControl.PageTransition>
+    </TransitioningContentControl>
+  </Grid>
+</Window>

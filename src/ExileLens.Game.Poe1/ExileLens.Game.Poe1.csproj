@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ExileLens.Game.Poe1</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ExileLens.Application\ExileLens.Application.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Data\*.json" LogicalName="ExileLens.Game.Poe1.Data.%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

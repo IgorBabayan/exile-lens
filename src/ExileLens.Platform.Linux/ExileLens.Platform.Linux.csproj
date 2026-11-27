@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ExileLens.Platform.Linux</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Native APIs (Xlib, Win32, Quartz) return status codes that carry no actionable information for these calls. -->
+    <NoWarn>$(NoWarn);CA1806</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ExileLens.Application\ExileLens.Application.csproj" />
+  </ItemGroup>
+</Project>

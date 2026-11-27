@@ -1,0 +1,24 @@
+Item Class: Gloves
+Rarity: Rare
+Havoc Grip
+Sorcerer Gloves
+--------
+Quality: +20% (augmented)
+Energy Shield: 120 (augmented)
+--------
+Requirements:
+Level: 69
+Int: 97
+--------
+Sockets: B-B-R-G
+--------
+Item Level: 84
+--------
++41 to maximum Energy Shield
++70 to maximum Life
++1,240 to Accuracy Rating
++38% to Cold Resistance
+12% increased Attack Speed (crafted)
+--------
+Searing Exarch Item
+Eater of Worlds Item

@@ -1,0 +1,139 @@
+name: Release
+
+# Runs only after a pull request from `development` is merged into `release`.
+# Direct pushes to `release`, PRs from other branches and closed-unmerged PRs are ignored.
+on:
+  pull_request:
+    types: [closed]
+    branches: [release]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  # The PR merge ref (refs/pull/N/merge) is gone after merge, so build the merge commit on `release`.
+  RELEASE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+
+jobs:
+  version:
+    if: >-
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.ref == 'development' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+      - id: v
+        name: Read version from Directory.Build.props
+        run: |
+          version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' Directory.Build.props | head -n1)
+          if [ -z "$version" ]; then echo "No <Version> found" >&2; exit 1; fi
+          if git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null; then
+            echo "Tag v$version already exists; bump <Version> in Directory.Build.props." >&2; exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  test:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet restore ExileLens.slnx
+      - run: dotnet build ExileLens.slnx -c Release --no-restore
+      - run: dotnet test tests/ExileLens.Tests/ExileLens.Tests.csproj -c Release --no-build
+
+  publish:
+    needs: [version, test]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, rid: win-x64 }
+          - { os: ubuntu-latest, rid: linux-x64 }
+          - { os: macos-latest, rid: osx-arm64 }
+          - { os: macos-latest, rid: osx-x64 }   # cross-published from Apple Silicon
+    runs-on: ${{ matrix.os }}
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      RID: ${{ matrix.rid }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Publish
+        shell: bash
+        run: |
+          dotnet publish src/ExileLens.App/ExileLens.App.csproj -c Release -r "$RID" --self-contained true \
+            -p:Version="$VERSION" -p:InformationalVersion="$VERSION" \
+            -p:PublishSingleFile=false -p:DebugType=none -o "publish/$RID"
+
+      - name: Package (Windows)
+        if: startsWith(matrix.rid, 'win')
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Compress-Archive -Path "publish/$env:RID/*" -DestinationPath "dist/ExileLens-$env:VERSION-$env:RID.zip"
+          choco install innosetup --no-progress -y
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=$env:VERSION /DSourceDir="$PWD\publish\$env:RID" /DOutputDir="$PWD\dist" /DRid=$env:RID build\windows\installer.iss
+
+      - name: Package (Linux)
+        if: startsWith(matrix.rid, 'linux')
+        shell: bash
+        run: bash build/linux/package.sh "$VERSION" "$RID" "publish/$RID" dist
+
+      - name: Package (macOS)
+        if: startsWith(matrix.rid, 'osx')
+        shell: bash
+        run: bash build/macos/package.sh "$VERSION" "$RID" "publish/$RID" dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.rid }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    needs: [version, publish]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: dist-*
+          merge-multiple: true
+      - name: Checksums
+        run: |
+          cd dist
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - name: Create GitHub release
+        run: |
+          gh release create "v$VERSION" dist/* \
+            --target "$RELEASE_SHA" \
+            --title "Exile Lens $VERSION" \
+            --generate-notes
