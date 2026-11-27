@@ -139,7 +139,7 @@ public sealed class ParserTests
         Assert.AreEqual(ItemCategory.Map, item.Category);
         Assert.AreEqual(16, item.MapTier);
         Assert.AreEqual(4, item.Modifiers.Count);
-        Assert.AreEqual("-#% maximum Player Resistances", item.Modifiers[1].Pattern);
+        Assert.AreEqual("Players have -#% to all maximum Resistances", item.Modifiers[1].Pattern);
     }
 
     [TestMethod]
