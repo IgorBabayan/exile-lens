@@ -34,13 +34,29 @@ jobs:
         with:
           ref: ${{ env.RELEASE_SHA }}
       - id: v
-        name: Read version from Directory.Build.props
+        name: Resolve release version
+        # <Version> in Directory.Build.props is the *minimum* version (bump it by hand only for
+        # minor/major releases). If its tag already exists, the patch number of the highest
+        # existing vX.Y.Z tag is incremented automatically, so a release never fails on a reused tag.
         run: |
-          version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' Directory.Build.props | head -n1)
-          if [ -z "$version" ]; then echo "No <Version> found" >&2; exit 1; fi
-          if git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null; then
-            echo "Tag v$version already exists; bump <Version> in Directory.Build.props." >&2; exit 1
+          base=$(sed -n 's:.*<Version>\([0-9]\+\.[0-9]\+\.[0-9]\+\)</Version>.*:\1:p' Directory.Build.props | head -n1)
+          if [ -z "$base" ]; then echo "No X.Y.Z <Version> found in Directory.Build.props" >&2; exit 1; fi
+
+          latest=$(git ls-remote --tags --refs origin 'refs/tags/v*' \
+            | sed -n 's:.*refs/tags/v\([0-9]\+\.[0-9]\+\.[0-9]\+\)$:\1:p' \
+            | sort -V | tail -n1)
+
+          version="$base"
+          if [ -n "$latest" ] && [ "$(printf '%s\n%s\n' "$base" "$latest" | sort -V | tail -n1)" = "$latest" ]; then
+            # base <= latest tag -> next patch after the latest tag.
+            IFS=. read -r major minor patch <<< "$latest"
+            version="$major.$minor.$((patch + 1))"
           fi
+
+          if git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null; then
+            echo "Tag v$version unexpectedly exists" >&2; exit 1
+          fi
+          echo "Base: $base, latest tag: ${latest:-none}, releasing: $version"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
   test:
