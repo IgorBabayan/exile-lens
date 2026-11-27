@@ -205,8 +205,9 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
     [ObservableProperty]
     private bool _isPinned;
 
+    /// <summary>Market listings are expanded by default; a manual collapse is kept while this overlay is open.</summary>
     [ObservableProperty]
-    private bool _showListings;
+    private bool _showListings = true;
 
     [ObservableProperty]
     private bool _hasRewards;

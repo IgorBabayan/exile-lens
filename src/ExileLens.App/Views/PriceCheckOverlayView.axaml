@@ -111,7 +111,7 @@
     </Expander>
   </StackPanel>
 
-    <Expander Grid.Row="1" Header="Market listings" Margin="0,4,0,0" IsExpanded="{Binding ShowListings}" IsVisible="{Binding HasListings}" Padding="0,2,0,0">
+    <Expander Grid.Row="1" Header="Market listings" Margin="0,4,0,0" IsExpanded="{Binding ShowListings, Mode=TwoWay}" IsVisible="{Binding HasListings}" Padding="0,2,0,0">
       <!-- Only the listings scroll. Right margin keeps the auto-hide scrollbar off the age column. -->
       <ScrollViewer MaxHeight="340" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
       <ItemsControl ItemsSource="{Binding Listings}" Margin="0,0,14,0">
