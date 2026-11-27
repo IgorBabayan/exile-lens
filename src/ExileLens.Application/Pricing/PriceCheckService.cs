@@ -20,6 +20,12 @@ public sealed class PriceCheckSession
     public required IReadOnlyList<SearchFilter> Filters { get; init; }
     public required string ValuationCurrency { get; init; }
     public bool UsesBulkPricing { get; init; }
+
+    /// <summary>
+    /// Overlay "All / Online" seller toggle for this check only. Every check starts on "All" (the listing type from
+    /// Settings as is); "Online" narrows it to sellers online right now.
+    /// </summary>
+    public bool OnlineSellersOnly { get; set; }
 }
 
 public sealed record RewardSummary(
@@ -111,7 +117,7 @@ public sealed class PriceCheckService : IPriceEstimationService
         var s = _settings.Current;
         var valuation = string.IsNullOrWhiteSpace(s.Rewards.ValuationCurrency) ? game.DefaultValuationCurrency : s.Rewards.ValuationCurrency!;
         var bulk = game.BulkPricedCategories.Contains(item.Category);
-        var options = Options(game);
+        var options = Options(game, onlineSellersOnly: false);
         var filters = bulk ? [] : _queryBuilder.CreateDefaultFilters(item, _statIndexes.GetValueOrDefault(game.Game), options);
         return new PriceCheckSession
         {
@@ -142,7 +148,7 @@ public sealed class PriceCheckService : IPriceEstimationService
     }
 
     public string BuildTradeUrl(PriceCheckSession session) =>
-        _trade.BuildSearchUrl(session.Game, session.League, _queryBuilder.Build(session.Item, session.Filters, Options(session.Game)));
+        _trade.BuildSearchUrl(session.Game, session.League, _queryBuilder.Build(session.Item, session.Filters, Options(session)));
 
     public async Task<PriceCheckResult> RunAsync(PriceCheckSession session, CancellationToken cancellationToken)
     {
@@ -167,7 +173,7 @@ public sealed class PriceCheckService : IPriceEstimationService
             }
             else
             {
-                var options = Options(session.Game);
+                var options = Options(session);
                 var query = _queryBuilder.Build(session.Item, session.Filters, options);
                 var key = $"{session.Game.Game}|{session.League}|{session.ValuationCurrency}|{query.ToJsonString()}";
                 if (_cache.TryGetValue(key, out (PriceEstimate, IReadOnlyList<MarketListing>, string?) cached))
@@ -317,14 +323,16 @@ public sealed class PriceCheckService : IPriceEstimationService
         return new RewardSummary(disenchant, salvage, vendor, comparison, dust);
     }
 
-    private TradeQueryOptions Options(IGameModule game)
+    private TradeQueryOptions Options(PriceCheckSession session) => Options(session.Game, session.OnlineSellersOnly);
+
+    private TradeQueryOptions Options(IGameModule game, bool onlineSellersOnly)
     {
         var t = _settings.Current.Trade;
         return new TradeQueryOptions(
             game.FilterLayout,
             t.ModifierMinPercent,
             t.EnableModifiersByDefault,
-            t.OnlineSellersOnly ? TradeListingStatuses.OnlineOnly(t.ListingStatus) : t.ListingStatus,
+            onlineSellersOnly ? TradeListingStatuses.OnlineOnly(t.ListingStatus) : t.ListingStatus,
             TradePriceCurrencies.Find(t.PriceCurrency).ApiId(game.Game));
     }
 }

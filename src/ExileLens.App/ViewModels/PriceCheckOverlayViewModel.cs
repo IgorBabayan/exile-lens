@@ -242,26 +242,26 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
 
     public bool HasListings => Listings.Count > 0;
 
-    /// <summary>Seller filter of the trade search, shared with Settings → Trade. Switching re-runs the search at once.</summary>
+    /// <summary>Seller filter of the current check; each new check starts on "All". Switching re-runs the search at once.</summary>
     public bool OnlineSellersOnly
     {
-        get => _settings.Current.Trade.OnlineSellersOnly;
+        get => _session?.OnlineSellersOnly ?? false;
         set => SetOnlineSellersOnly(value);
     }
 
     /// <summary>Second half of the "All / Online" segmented toggle.</summary>
     public bool AllSellers
     {
-        get => !_settings.Current.Trade.OnlineSellersOnly;
+        get => !OnlineSellersOnly;
         set => SetOnlineSellersOnly(!value);
     }
 
     private void SetOnlineSellersOnly(bool value)
     {
-        if (value != _settings.Current.Trade.OnlineSellersOnly)
+        if (_session is { } session && value != session.OnlineSellersOnly)
         {
-            _settings.Update(s => s.Trade.OnlineSellersOnly = value);
-            if (_session is { UsesBulkPricing: false })
+            session.OnlineSellersOnly = value;
+            if (!session.UsesBulkPricing)
             {
                 // Same path as an explicit refresh; a previously seen status is served from the query cache.
                 _debounce.Stop();

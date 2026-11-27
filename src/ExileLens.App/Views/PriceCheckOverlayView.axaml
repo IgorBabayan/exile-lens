@@ -110,7 +110,7 @@
       </ItemsControl>
     </Expander>
 
-    <!-- Seller filter (Settings → Trade → Sellers). Visible for every item search, even when it returned nothing. -->
+    <!-- Seller filter of this check (starts on "All"). Visible for every item search, even when it returned nothing. -->
     <Grid ColumnDefinitions="*,Auto" Margin="0,10,0,0" IsVisible="{Binding CanOpenTrade}">
       <TextBlock Text="Sellers" Classes="secondary" VerticalAlignment="Center" />
       <Border Grid.Column="1" Classes="segmented">
