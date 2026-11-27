@@ -160,6 +160,33 @@ public sealed class TradeQueryTests
     }
 
     [TestMethod]
+    public void FoulbornUniqueSearchesBaseNameWithFoulbornFilter()
+    {
+        var item = Fixture.Parse("poe1/foulborn-unique-armour.txt", GameId.Poe1);
+        Assert.IsTrue(item.IsFoulborn);
+        Assert.AreEqual("Foulborn Zahndethus' Cassock", item.DisplayName, "display keeps the in-game name");
+
+        var builder = new TradeQueryBuilder();
+        var options = new TradeQueryOptions(Games.Poe1.FilterLayout);
+        var query = builder.Build(item, builder.CreateDefaultFilters(item, Stats(), options), options)["query"]!;
+        Assert.AreEqual("Zahndethus' Cassock", query["name"]!.GetValue<string>());
+        Assert.AreEqual("Sage's Robe", query["type"]!.GetValue<string>());
+        Assert.AreEqual("true", query["filters"]!["misc_filters"]!["filters"]!["foulborn_item"]!["option"]!.GetValue<string>());
+    }
+
+    [TestMethod]
+    public void RegularUniqueExcludesFoulbornCopies()
+    {
+        var item = Fixture.Parse("poe1/unique-amulet.txt", GameId.Poe1);
+        Assert.IsFalse(item.IsFoulborn);
+
+        var builder = new TradeQueryBuilder();
+        var options = new TradeQueryOptions(Games.Poe1.FilterLayout);
+        var query = builder.Build(item, builder.CreateDefaultFilters(item, Stats(), options), options)["query"]!;
+        Assert.AreEqual("false", query["filters"]!["misc_filters"]!["filters"]!["foulborn_item"]!["option"]!.GetValue<string>());
+    }
+
+    [TestMethod]
     public void Poe1SocketsAndLinksUseSocketFilters()
     {
         var item = Fixture.Parse("poe1/six-link-armour.txt", GameId.Poe1);

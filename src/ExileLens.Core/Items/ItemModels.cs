@@ -110,6 +110,9 @@ public sealed class ParsedItem
     public bool IsMirrored { get; init; }
     public bool IsFractured { get; init; }
     public bool IsSynthesised { get; init; }
+
+    /// <summary>PoE 1 Foulborn (mutated) unique: the clipboard name carries a "Foulborn " prefix the trade API does not know.</summary>
+    public bool IsFoulborn { get; init; }
     public SocketInfo Sockets { get; init; } = SocketInfo.None;
     public IReadOnlyList<string> Influences { get; init; } = [];
     public IReadOnlyList<ItemModifier> Modifiers { get; init; } = [];
@@ -125,6 +128,13 @@ public sealed class ParsedItem
     public IReadOnlyList<string> UnparsedLines { get; init; } = [];
 
     public string DisplayName => Name ?? BaseType;
+
+    /// <summary>Unique name as the official trade API expects it (Foulborn prefix removed; the variant is a separate filter).</summary>
+    public string? TradeName => IsFoulborn && Name is { } n && n.Length > FoulbornPrefix.Length && n.StartsWith(FoulbornPrefix, StringComparison.Ordinal)
+        ? n[FoulbornPrefix.Length..]
+        : Name;
+
+    public const string FoulbornPrefix = "Foulborn ";
 
     public IEnumerable<ItemModifier> ModifiersOf(ModifierKind kind)
     {

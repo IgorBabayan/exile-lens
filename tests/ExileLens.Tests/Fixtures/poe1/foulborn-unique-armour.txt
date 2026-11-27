@@ -1,0 +1,25 @@
+Item Class: Body Armours
+Rarity: Unique
+Foulborn Zahndethus' Cassock
+Sage's Robe
+--------
+Energy Shield: 185 (augmented)
+--------
+Requirements:
+Level: 37
+Int: 104
+--------
+Sockets: B-B B
+--------
+Item Level: 84
+--------
+Adds 1 to 40 Lightning Damage to Attacks
+131% increased Energy Shield
++49% to Chaos Resistance
+100% chance to create Consecrated Ground when you Block
+Create Profane Ground instead of Consecrated Ground
+--------
+When dead men rise and darkness falls
+Only faith can be your walls
+Walls of Light, not of brick
+Twice as strong and twice as thick

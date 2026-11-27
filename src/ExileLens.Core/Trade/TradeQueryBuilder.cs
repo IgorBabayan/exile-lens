@@ -43,7 +43,8 @@ public sealed record TradeFilterLayout(
     string SocketKey,
     string? LinksKey,
     string MapGroup,
-    string MapTierKey);
+    string MapTierKey,
+    string? FoulbornGroup = null);
 
 public interface ITradeQueryBuilder
 {
@@ -150,9 +151,9 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
             ["status"] = new JsonObject { ["option"] = options.OnlineOnly ? "online" : "any" },
         };
 
-        if (item.Rarity == ItemRarity.Unique && item.IsIdentified && item.Name is not null)
+        if (item.Rarity == ItemRarity.Unique && item.IsIdentified && item.TradeName is { } tradeName)
         {
-            query["name"] = item.Name;
+            query["name"] = tradeName;
             query["type"] = item.BaseType;
         }
         else if (item.Rarity is ItemRarity.Normal or ItemRarity.Rare || item.Category is not ItemCategory.Equipment)
@@ -175,6 +176,12 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
         if (item.Category is ItemCategory.Equipment or ItemCategory.Jewel or ItemCategory.Flask or ItemCategory.Charm)
         {
             Group("type_filters")["rarity"] = new JsonObject { ["option"] = item.Rarity == ItemRarity.Unique ? "unique" : "nonunique" };
+        }
+
+        // Foulborn and regular copies of a unique share a name but not a price: always pin the variant.
+        if (layout.FoulbornGroup is { } foulbornGroup && item.Rarity == ItemRarity.Unique && item.IsIdentified && item.Name is not null)
+        {
+            Group(foulbornGroup)["foulborn_item"] = new JsonObject { ["option"] = item.IsFoulborn ? "true" : "false" };
         }
 
         var statFilters = new JsonArray();
