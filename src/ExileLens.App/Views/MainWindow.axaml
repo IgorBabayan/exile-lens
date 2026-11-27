@@ -22,7 +22,9 @@
       </Border.Transitions>
       <DockPanel Margin="10,14,10,12">
         <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto" Margin="4,0,0,18">
-          <Image Grid.Column="0" Source="avares://ExileLens/Assets/icon.png" Width="24" Height="24" />
+          <!-- Pre-sized 48px asset (exact 2x of 24 DIP) + high-quality filtering: no aliasing at any DPI, and no 256px decode. -->
+          <Image Grid.Column="0" Source="avares://ExileLens/Assets/icon-48.png" Width="24" Height="24"
+                 RenderOptions.BitmapInterpolationMode="HighQuality" />
           <TextBlock Grid.Column="1" Text="Exile Lens" FontWeight="SemiBold" FontSize="15" Margin="10,0,0,0"
                      VerticalAlignment="Center" IsVisible="{Binding !IsSidebarCollapsed}" />
           <Button Grid.Column="2" Classes="icon" Command="{Binding ToggleSidebarCommand}" ToolTip.Tip="Collapse sidebar"

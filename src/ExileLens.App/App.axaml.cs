@@ -207,9 +207,21 @@ public sealed partial class App : Avalonia.Application
         }
     }
 
+    private static WindowIcon? _icon;
+
+    /// <summary>
+    /// Shared window/tray icon, decoded once. On Windows the multi-size .ico is used so the shell picks the hand-sized
+    /// 16/20/24/32px frames for the title bar, taskbar and tray instead of downscaling the 256px PNG (which looks jagged).
+    /// </summary>
     internal static WindowIcon LoadIcon()
     {
-        using var stream = AssetLoader.Open(new Uri("avares://ExileLens/Assets/icon.png"));
-        return new WindowIcon(stream);
+        if (_icon is not null)
+        {
+            return _icon;
+        }
+
+        var asset = OperatingSystem.IsWindows() ? "icon.ico" : "icon.png";
+        using var stream = AssetLoader.Open(new Uri($"avares://ExileLens/Assets/{asset}"));
+        return _icon = new WindowIcon(stream);
     }
 }
