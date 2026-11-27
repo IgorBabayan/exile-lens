@@ -165,7 +165,7 @@ public sealed class ProfileServiceTests
         using (paths)
         {
             var p = service.Create(GameId.Poe1, "Melee");
-            service.SetLevels(p.Id, ["poe1.reflect-physical", "poe1.no-regen"], DangerLevel.Dangerous);
+            service.SetLevels(p.Id, ["poe1.no-regen", "poe1.max-res"], DangerLevel.Dangerous);
             var json = service.Export(p.Id);
             var imported = service.Import(json);
 
