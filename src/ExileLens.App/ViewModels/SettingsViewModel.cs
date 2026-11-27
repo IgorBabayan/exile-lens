@@ -1,8 +1,10 @@
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using ExileLens.Application.Capture;
+using ExileLens.Application.Chat;
 using ExileLens.Application.Games;
 using ExileLens.Application.Market;
 using ExileLens.Application.Platform;
@@ -34,6 +36,8 @@ public sealed partial class SettingsViewModel : PageViewModel
         _shortcutGame = GameOptions.FirstOrDefault(o => o.Game == GameId.Poe1) ?? GameOptions[0];
         LeagueSelectors = games.All.Select(g => new LeagueSelectorViewModel(g, settings, leagues)).ToList();
         CurrentVersion = updates.CurrentVersion.ToString();
+        ChatCommands = new ObservableCollection<ChatCommandViewModel>(settings.Current.Chat.Commands.Select(CreateChatRow));
+        RefreshChatErrors();
     }
 
     public IReadOnlyList<GameSelectionOption> GameSelections { get; } =
@@ -185,6 +189,7 @@ public sealed partial class SettingsViewModel : PageViewModel
         {
             var game = ShortcutGame.Game;
             _settings.Update(s => mutate(s.For(game)));
+            RefreshChatErrors();
         }
 
         OnPropertyChanged(name);
@@ -203,6 +208,60 @@ public sealed partial class SettingsViewModel : PageViewModel
         });
         ShortcutError = null;
         OnShortcutGameChanged(ShortcutGame);
+        RefreshChatErrors();
+    }
+
+    // ---------- Chat ----------
+    public bool ChatEnabled { get => _settings.Current.Chat.Enabled; set => Set(s => s.Chat.Enabled = value); }
+
+    public ObservableCollection<ChatCommandViewModel> ChatCommands { get; }
+
+    [RelayCommand]
+    private void AddChatCommand()
+    {
+        var command = new ChatCommand();
+
+        // Copy-on-write: a background save may be enumerating the current list.
+        _settings.Update(s => s.Chat.Commands = [.. s.Chat.Commands, command]);
+        ChatCommands.Add(CreateChatRow(command));
+    }
+
+    [RelayCommand]
+    private void RemoveChatCommand(ChatCommandViewModel? row)
+    {
+        if (row is null)
+        {
+            return;
+        }
+
+        _settings.Update(s => s.Chat.Commands = s.Chat.Commands.Where(c => !ReferenceEquals(c, row.Model)).ToList());
+        ChatCommands.Remove(row);
+        RefreshChatErrors();
+    }
+
+    [RelayCommand]
+    private void ResetChatCommands()
+    {
+        var defaults = ChatSettings.CreateDefaultCommands();
+        _settings.Update(s => s.Chat.Commands = defaults);
+        ChatCommands.Clear();
+        foreach (var command in defaults)
+        {
+            ChatCommands.Add(CreateChatRow(command));
+        }
+
+        RefreshChatErrors();
+    }
+
+    private ChatCommandViewModel CreateChatRow(ChatCommand command) => new(command, _settings, RefreshChatErrors);
+
+    private void RefreshChatErrors()
+    {
+        var errors = ChatCommandRules.Validate(_settings.Current, out _);
+        foreach (var row in ChatCommands)
+        {
+            row.Error = errors.GetValueOrDefault(row.Model);
+        }
     }
 
     // ---------- Leagues (per game) ----------

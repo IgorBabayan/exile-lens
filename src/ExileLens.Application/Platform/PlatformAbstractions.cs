@@ -151,12 +151,31 @@ public interface IClipboardService
     Task SetTextAsync(string? text, CancellationToken cancellationToken = default);
 }
 
+/// <summary>Keystrokes used to type into the game chat.</summary>
+public enum ChatKeystroke
+{
+    /// <summary>Enter: opens the chat input, or sends its text when it is already open.</summary>
+    Enter,
+
+    /// <summary>Ctrl+A (Cmd+A on macOS): selects any text left in the chat input.</summary>
+    SelectAll,
+
+    /// <summary>Ctrl+V (Cmd+V on macOS): pastes the clipboard.</summary>
+    Paste,
+}
+
 /// <summary>Sends exactly one copy keystroke to the focused game window. One user key press → one game action.</summary>
 public interface IKeyboardInputService
 {
     bool IsSupported { get; }
     string? Limitation { get; }
     Task SendCopyAsync(bool advanced, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sends one chat keystroke to the focused window. Modifiers still held from the triggering shortcut are
+    /// released first so, for example, Enter is not read as Ctrl+Enter.
+    /// </summary>
+    void SendChatKeystroke(ChatKeystroke keystroke);
 }
 
 public readonly record struct PixelRect(int X, int Y, int Width, int Height)

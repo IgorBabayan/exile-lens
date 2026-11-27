@@ -173,6 +173,48 @@
         </StackPanel>
       </Border>
 
+      <!-- Chat -->
+      <Border Classes="panel">
+        <StackPanel Spacing="8">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="Chat" Classes="subtitle" VerticalAlignment="Center" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+              <Button Content="Add command" Command="{Binding AddChatCommandCommand}" />
+              <Button Content="Restore defaults" Command="{Binding ResetChatCommandsCommand}" />
+            </StackPanel>
+          </Grid>
+          <TextBlock Classes="caption" TextWrapping="Wrap"
+                     Text="Press a shortcut in the game to paste the command into the chat. With Send on, Enter is pressed for you; otherwise the chat stays open so you can finish typing. Shortcuts only act while the game window is focused." />
+          <ToggleSwitch IsChecked="{Binding ChatEnabled}" OnContent="Chat commands" OffContent="Chat commands" />
+          <StackPanel Orientation="Horizontal" Spacing="10" IsEnabled="{Binding ChatEnabled}">
+            <TextBlock Width="32" />
+            <TextBlock Width="260" Text="Chat command" Classes="caption" />
+            <TextBlock Width="170" Text="Shortcut" Classes="caption" />
+            <TextBlock Text="Send" Classes="caption" />
+          </StackPanel>
+          <ItemsControl ItemsSource="{Binding ChatCommands}" IsEnabled="{Binding ChatEnabled}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:ChatCommandViewModel">
+                <StackPanel Spacing="2" Margin="0,0,0,4">
+                  <StackPanel Classes="row">
+                    <CheckBox IsChecked="{Binding Enabled}" Width="32" MinWidth="0" ToolTip.Tip="Enabled" />
+                    <TextBox Text="{Binding Text, UpdateSourceTrigger=LostFocus}" Width="260" PlaceholderText="/hideout" />
+                    <TextBox Classes="shortcut" Text="{Binding Hotkey}" Width="170" IsReadOnly="True" PlaceholderText="Press a key" />
+                    <CheckBox IsChecked="{Binding Send}" ToolTip.Tip="Press Enter after pasting" />
+                    <Button Classes="icon" ToolTip.Tip="Remove" VerticalAlignment="Center"
+                            Command="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).RemoveChatCommandCommand}" CommandParameter="{Binding}">
+                      <Path Classes="icon" Width="13" Height="13" Data="{StaticResource IconClose}" />
+                    </Button>
+                  </StackPanel>
+                  <TextBlock Text="{Binding Error}" Foreground="{DynamicResource WarningBrush}" TextWrapping="Wrap" Margin="42,0,0,0"
+                             IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+
       <!-- Trade -->
       <Border Classes="panel">
         <StackPanel Spacing="8">

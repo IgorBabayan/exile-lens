@@ -483,6 +483,54 @@ public sealed class X11KeyboardInputService(X11DisplayConnection connection) : I
         }, false);
         return Task.CompletedTask;
     }
+
+    public void SendChatKeystroke(ChatKeystroke keystroke)
+    {
+        connection.Use(d =>
+        {
+            // Release modifiers still held from the shortcut so Enter is not read as Ctrl+Enter etc.
+            X11.XQueryPointer(d, X11.XDefaultRootWindow(d), out _, out _, out _, out _, out _, out _, out var mask);
+            Release(d, mask, X11.ControlMask, "Control_L", "Control_R");
+            Release(d, mask, X11.ShiftMask, "Shift_L", "Shift_R");
+            Release(d, mask, X11.Mod1Mask, "Alt_L", "Alt_R");
+            Release(d, mask, X11.Mod4Mask, "Super_L", "Super_R");
+
+            var (sym, ctrl) = keystroke switch
+            {
+                ChatKeystroke.SelectAll => ("a", true),
+                ChatKeystroke.Paste => ("v", true),
+                _ => ("Return", false),
+            };
+
+            var key = X11.XKeysymToKeycode(d, X11.XStringToKeysym(sym));
+            var control = ctrl ? X11.XKeysymToKeycode(d, X11.XStringToKeysym("Control_L")) : (byte)0;
+            if (ctrl)
+            {
+                X11.XTestFakeKeyEvent(d, control, 1, 0);
+            }
+
+            X11.XTestFakeKeyEvent(d, key, 1, 0);
+            X11.XTestFakeKeyEvent(d, key, 0, 0);
+            if (ctrl)
+            {
+                X11.XTestFakeKeyEvent(d, control, 0, 0);
+            }
+
+            X11.XFlush(d);
+            return true;
+        }, false);
+    }
+
+    private static void Release(nint d, uint mask, uint bit, string left, string right)
+    {
+        if ((mask & bit) == 0)
+        {
+            return;
+        }
+
+        X11.XTestFakeKeyEvent(d, X11.XKeysymToKeycode(d, X11.XStringToKeysym(left)), 0, 0);
+        X11.XTestFakeKeyEvent(d, X11.XKeysymToKeycode(d, X11.XStringToKeysym(right)), 0, 0);
+    }
 }
 
 /// <summary>XDG autostart entry (~/.config/autostart/exile-lens.desktop).</summary>
