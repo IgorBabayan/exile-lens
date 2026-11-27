@@ -31,7 +31,8 @@ public sealed record PriceCheckResult(
     RewardSummary Rewards,
     string? Error,
     bool FromCache,
-    TimeSpan NetworkTime);
+    TimeSpan NetworkTime,
+    string? IconUrl = null);
 
 public interface IPriceEstimationService
 {
@@ -42,6 +43,9 @@ public interface IPriceEstimationService
     RewardSummary EstimateRewardsLocal(PriceCheckSession session, PriceEstimate? market);
 
     Task<PriceCheckResult> RunAsync(PriceCheckSession session, CancellationToken cancellationToken);
+
+    /// <summary>Icon URL already known for this item (from earlier searches or cached exchange data). Never blocks.</summary>
+    string? PeekIconUrl(PriceCheckSession session);
 
     string BuildTradeUrl(PriceCheckSession session);
 }
@@ -59,6 +63,8 @@ public sealed class PriceCheckService : IPriceEstimationService
     private readonly ILogger<PriceCheckService> _logger;
     private readonly ConcurrentDictionary<string, Lazy<Task<(PriceEstimate, IReadOnlyList<MarketListing>, string?)>>> _inflight = new();
     private readonly ConcurrentDictionary<GameId, StatIndex> _statIndexes = new();
+    private readonly ConcurrentDictionary<string, string> _icons = new(StringComparer.OrdinalIgnoreCase);
+    private const int MaxRememberedIcons = 4096;
 
     public PriceCheckService(
         ITradeClient trade,
@@ -116,6 +122,17 @@ public sealed class PriceCheckService : IPriceEstimationService
         return ComputeRewards(session, rates, market);
     }
 
+    public string? PeekIconUrl(PriceCheckSession session)
+    {
+        var item = session.Item;
+        if (_icons.TryGetValue(IconKey(session.Game.Game, item), out var url))
+        {
+            return url;
+        }
+
+        return session.UsesBulkPricing ? _market.GetCachedIconUrl(session.Game, session.League, item.BaseType) : null;
+    }
+
     public string BuildTradeUrl(PriceCheckSession session) =>
         _trade.BuildSearchUrl(session.Game, session.League, _queryBuilder.Build(session.Item, session.Filters, Options(session.Game)));
 
@@ -160,7 +177,7 @@ public sealed class PriceCheckService : IPriceEstimationService
             }
 
             var rewards = ComputeRewards(session, rates, estimate);
-            return new PriceCheckResult(estimate, listings, tradeUrl, rewards, null, fromCache, _time.GetElapsedTime(started));
+            return new PriceCheckResult(estimate, listings, tradeUrl, rewards, null, fromCache, _time.GetElapsedTime(started), PeekIconUrl(session));
         }
         catch (TradeRateLimitedException ex)
         {
@@ -175,7 +192,37 @@ public sealed class PriceCheckService : IPriceEstimationService
 
     private PriceCheckResult Failed(PriceCheckSession session, CurrencyRates rates, DateTimeOffset now, string message, long started) =>
         new(PriceEstimate.Unavailable(session.ValuationCurrency, "Official trade", now), [], null,
-            ComputeRewards(session, rates, null), message, false, _time.GetElapsedTime(started));
+            ComputeRewards(session, rates, null), message, false, _time.GetElapsedTime(started), PeekIconUrl(session));
+
+    private static string IconKey(GameId game, ParsedItem item) =>
+        item.Rarity == ItemRarity.Unique && item.Name is { Length: > 0 } name
+            ? $"{game}|u|{name}"
+            : $"{game}|b|{item.BaseType}";
+
+    private void RememberIcon(GameId game, ParsedItem item, List<TradeListing> fetched)
+    {
+        var key = IconKey(game, item);
+        if (item.BaseType.Length == 0 || _icons.ContainsKey(key))
+        {
+            return;
+        }
+
+        // Only trust art from a listing of the same base: with the base filter off, other bases can be returned.
+        foreach (var l in fetched)
+        {
+            if (l.Icon is { Length: > 0 } icon && l.TypeLine is { } type
+                && type.Contains(item.BaseType, StringComparison.OrdinalIgnoreCase))
+            {
+                if (_icons.Count >= MaxRememberedIcons)
+                {
+                    _icons.Clear();
+                }
+
+                _icons[key] = icon;
+                return;
+            }
+        }
+    }
 
     private async Task<(PriceEstimate, IReadOnlyList<MarketListing>, string?)> SearchAsync(PriceCheckSession session, JsonObject query, CurrencyRates rates, string key)
     {
@@ -194,6 +241,7 @@ public sealed class PriceCheckService : IPriceEstimationService
                 fetched.AddRange(await _trade.FetchAsync(session.Game, search.QueryId, chunk, ct).ConfigureAwait(false));
             }
 
+            RememberIcon(session.Game.Game, session.Item, fetched);
             var listings = new List<MarketListing>(fetched.Count);
             foreach (var l in fetched)
             {

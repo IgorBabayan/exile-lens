@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -105,14 +106,20 @@ public sealed record KeyValueRow(string Label, string Value);
 
 public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOverlayContent
 {
+    /// <summary>Quiet period after the last filter edit before a search is sent (avoids a request per click/keystroke).</summary>
+    private static readonly TimeSpan FilterSearchDelay = TimeSpan.FromMilliseconds(2500);
+
     private readonly IPriceEstimationService _pricing;
     private readonly IHistoryService _history;
     private readonly ISettingsService _settings;
     private readonly IClipboardService _clipboard;
     private readonly IOverlayService _overlay;
+    private readonly ItemIconLoader _icons;
     private readonly TimeProvider _time;
     private readonly DispatcherTimer _debounce;
     private CancellationTokenSource? _cts;
+    private CancellationTokenSource? _iconCts;
+    private string? _iconUrl;
     private PriceCheckSession? _session;
     private bool _historyRecorded;
 
@@ -122,6 +129,7 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
         ISettingsService settings,
         IClipboardService clipboard,
         IOverlayService overlay,
+        ItemIconLoader icons,
         TimeProvider time)
     {
         _pricing = pricing;
@@ -129,10 +137,12 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
         _settings = settings;
         _clipboard = clipboard;
         _overlay = overlay;
+        _icons = icons;
         _time = time;
-        _debounce = new DispatcherTimer(TimeSpan.FromMilliseconds(450), DispatcherPriority.Background, (_, _) =>
+        _debounce = new DispatcherTimer(FilterSearchDelay, DispatcherPriority.Background, (_, _) =>
         {
             _debounce!.Stop();
+            IsSearchPending = false;
             _ = RunAsync();
         });
     }
@@ -162,6 +172,14 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
 
     [ObservableProperty]
     private string _initial = "?";
+
+    /// <summary>Item art; null shows the initial-letter placeholder.</summary>
+    [ObservableProperty]
+    private Bitmap? _icon;
+
+    /// <summary>Filters changed and a search is scheduled once the user stops editing.</summary>
+    [ObservableProperty]
+    private bool _isSearchPending;
 
     [ObservableProperty]
     private bool _isLoading;
@@ -230,6 +248,10 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
         NameBrush = DangerPalette.Rarity(item.Rarity);
         Initial = item.DisplayName.Length > 0 ? item.DisplayName[..1] : "?";
         MetaLine = BuildMeta(item);
+        ResetIcon();
+        ShowIcon(_pricing.PeekIconUrl(session));
+        _debounce.Stop();
+        IsSearchPending = false;
 
         StatFilters.Clear();
         PropertyFilters.Clear();
@@ -271,6 +293,10 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
     public void Detach()
     {
         _debounce.Stop();
+        IsSearchPending = false;
+        _iconCts?.Cancel();
+        _iconCts?.Dispose();
+        _iconCts = null;
         _cts?.Cancel();
         _cts?.Dispose();
         _cts = null;
@@ -278,12 +304,65 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
 
     private void OnFilterChanged()
     {
+        // Restart the quiet period on every edit; the search runs only once nothing has changed for FilterSearchDelay.
         _debounce.Stop();
         _debounce.Start();
+        IsSearchPending = true;
     }
 
     [RelayCommand]
-    private Task RefreshAsync() => RunAsync();
+    private Task RefreshAsync()
+    {
+        // Explicit refresh wins over a pending filter search.
+        _debounce.Stop();
+        IsSearchPending = false;
+        return RunAsync();
+    }
+
+    private void ResetIcon()
+    {
+        _iconCts?.Cancel();
+        _iconCts?.Dispose();
+        _iconCts = null;
+        _iconUrl = null;
+        Icon = null;
+    }
+
+    private void ShowIcon(string? url)
+    {
+        if (url is null || url == _iconUrl)
+        {
+            return;
+        }
+
+        _iconUrl = url;
+        if (_icons.TryGetCached(url) is { } cached)
+        {
+            Icon = cached; // already decoded: no async hop, no placeholder flash
+            return;
+        }
+
+        _iconCts?.Cancel();
+        _iconCts?.Dispose();
+        _iconCts = new CancellationTokenSource();
+        _ = LoadIconAsync(url, _iconCts.Token);
+    }
+
+    private async Task LoadIconAsync(string url, CancellationToken token)
+    {
+        try
+        {
+            var bitmap = await _icons.LoadAsync(url, token);
+            if (!token.IsCancellationRequested && bitmap is not null && url == _iconUrl)
+            {
+                Icon = bitmap;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // another item was opened
+        }
+    }
 
     private async Task RunAsync()
     {
@@ -325,6 +404,7 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
     {
         var e = result.Estimate;
         CanOpenTrade = !_session!.UsesBulkPricing;
+        ShowIcon(result.IconUrl);
         Error = result.Error;
 
         if (e.HasValue)

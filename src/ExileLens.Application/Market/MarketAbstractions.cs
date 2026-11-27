@@ -17,7 +17,9 @@ public sealed record TradeListing(
     string? AccountName,
     bool? Online,
     DateTimeOffset? Indexed,
-    string? ItemSummary);
+    string? ItemSummary,
+    string? Icon = null,
+    string? TypeLine = null);
 
 public sealed class TradeRateLimitedException(TimeSpan retryAfter, string policy)
     : Exception($"Trade API rate limit reached for '{policy}'. Retry in {retryAfter.TotalSeconds:0} s.")
@@ -49,6 +51,9 @@ public interface IMarketDataProvider
 
     /// <summary>Aggregated price for stackable/bulk items (currency, fragments, essences...). Null when unknown.</summary>
     Task<PriceEstimate?> GetBulkPriceAsync(IGameModule game, string league, ParsedItem item, string valuationCurrency, CancellationToken cancellationToken);
+
+    /// <summary>Icon URL for a bulk item from already-downloaded data only. Never touches the network.</summary>
+    string? GetCachedIconUrl(IGameModule game, string league, string name) => null;
 }
 
 public interface ICurrencyConversionService

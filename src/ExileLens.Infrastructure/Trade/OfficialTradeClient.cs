@@ -154,16 +154,19 @@ public sealed class OfficialTradeClient(HttpClient http, RateLimiter limiter, IL
                 : null;
 
             string? summary = null;
+            string? icon = null;
+            string? type = null;
             if (entry.TryGetProperty("item", out var item) && item.ValueKind == JsonValueKind.Object)
             {
                 var name = item.TryGetProperty("name", out var nm) ? nm.GetString() : null;
-                var type = item.TryGetProperty("typeLine", out var tl) ? tl.GetString() : null;
+                type = item.TryGetProperty("typeLine", out var tl) ? tl.GetString() : null;
+                icon = item.TryGetProperty("icon", out var ic) && ic.ValueKind == JsonValueKind.String ? ic.GetString() : null;
                 var ilvl = item.TryGetProperty("ilvl", out var il) && il.TryGetInt32(out var lvl) ? $" · ilvl {lvl}" : string.Empty;
                 summary = string.IsNullOrEmpty(name) ? $"{type}{ilvl}" : $"{name}, {type}{ilvl}";
             }
 
             var id = entry.TryGetProperty("id", out var idEl) ? idEl.GetString() ?? string.Empty : string.Empty;
-            list.Add(new TradeListing(id, amount, currency, account, online, indexed, summary));
+            list.Add(new TradeListing(id, amount, currency, account, online, indexed, summary, icon, type));
         }
 
         return list;
