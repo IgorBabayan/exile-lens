@@ -3,9 +3,15 @@
              xmlns:vm="using:ExileLens.App.ViewModels"
              x:Class="ExileLens.App.Views.PriceCheckOverlayView"
              x:DataType="vm:PriceCheckOverlayViewModel">
-  <StackPanel Spacing="0">
-    <!-- Header -->
-    <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto" Margin="0,0,0,12">
+  <!--
+    Three rows: everything above the listings keeps its natural height, the listings take whatever height is left
+    (and scroll on their own), the rewards/trade button stay pinned below. In the overlay the window caps the height,
+    so only the listings scroll; embedded in a page the star row simply sizes to content.
+  -->
+  <Grid RowDefinitions="Auto,*,Auto">
+  <StackPanel Grid.Row="0" Spacing="0">
+    <!-- Header (drag handle: pressing anywhere except the buttons moves the overlay) -->
+    <Grid Classes="drag-handle" Background="Transparent" ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto" Margin="0,0,0,12">
       <Path Grid.Column="0" Classes="icon" Data="{StaticResource IconSearch}" Stroke="{DynamicResource AccentBrush}" />
       <TextBlock Grid.Column="1" Text="Price check" Margin="10,0,0,0" FontSize="14" VerticalAlignment="Center" />
       <TextBlock Grid.Column="2" Text="{Binding GameLabel}" Classes="caption" VerticalAlignment="Center" Margin="0,0,6,0" />
@@ -81,7 +87,7 @@
       </ItemsControl.ItemTemplate>
     </ItemsControl>
 
-    <Expander Header="Search filters" Margin="0,8,0,0" IsVisible="{Binding HasPropertyFilters}" Padding="10,6">
+    <Expander Header="Search filters" Margin="0,4,0,0" IsVisible="{Binding HasPropertyFilters}" Padding="0,2,0,0">
       <ItemsControl ItemsSource="{Binding PropertyFilters}">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:FilterItemViewModel">
@@ -96,9 +102,15 @@
         </ItemsControl.ItemTemplate>
       </ItemsControl>
     </Expander>
+  </StackPanel>
 
-    <Expander Header="Market listings" Margin="0,8,0,0" IsExpanded="{Binding ShowListings}" IsVisible="{Binding HasListings}" Padding="10,6">
-      <ItemsControl ItemsSource="{Binding Listings}">
+    <Expander Grid.Row="1" Header="Market listings" Margin="0,4,0,0" IsExpanded="{Binding ShowListings}" IsVisible="{Binding HasListings}" Padding="0,2,0,0">
+      <!-- Only the listings scroll. Right margin keeps the auto-hide scrollbar off the age column. -->
+      <ScrollViewer MaxHeight="340" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+      <ItemsControl ItemsSource="{Binding Listings}" Margin="0,0,14,0">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:ListingItemViewModel">
             <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4">
@@ -115,8 +127,10 @@
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>
+      </ScrollViewer>
     </Expander>
 
+  <StackPanel Grid.Row="2" Spacing="0">
     <!-- Disenchantment / vendor / salvage -->
     <StackPanel IsVisible="{Binding HasRewards}">
       <Border Classes="divider" Margin="0,14,0,4" />
@@ -146,4 +160,5 @@
       </StackPanel>
     </Button>
   </StackPanel>
+  </Grid>
 </UserControl>

@@ -34,6 +34,10 @@ internal sealed class OverlayService(
     private GameWindowInfo? _gameWindow;
     private AppPixelPoint? _anchor;
 
+    // Set once the user drags the overlay; from then on size changes keep the user's spot instead of snapping
+    // back to the item. Reset whenever a new overlay is shown so it opens next to the item again.
+    private bool _userPlaced;
+
     public bool IsVisible { get; private set; }
 
     public event EventHandler? VisibilityChanged;
@@ -104,6 +108,7 @@ internal sealed class OverlayService(
         _content = content;
         _gameWindow = gameWindow;
         _anchor = cursor;
+        _userPlaced = false;
 
         var window = EnsureWindow();
         var appearance = settings.Current.Appearance;
@@ -143,6 +148,7 @@ internal sealed class OverlayService(
 
         _window = new OverlayWindow();
         _window.CloseRequested += (_, _) => Close();
+        _window.UserMoved += (_, _) => _userPlaced = true;
         _window.Deactivated += (_, _) =>
         {
             if (settings.Current.Appearance.CloseOverlayOnClickOutside && _content is { IsPinned: false })
@@ -152,7 +158,16 @@ internal sealed class OverlayService(
         };
         _window.PropertyChanged += (_, e) =>
         {
-            if (e.Property == Visual.BoundsProperty && IsVisible)
+            if (e.Property != Visual.BoundsProperty || !IsVisible)
+            {
+                return;
+            }
+
+            if (_userPlaced)
+            {
+                KeepOnScreen(_window);
+            }
+            else
             {
                 Position(_window, ScreenFor(_window, _anchor, _gameWindow));
             }
@@ -198,6 +213,31 @@ internal sealed class OverlayService(
         }
 
         return new Avalonia.PixelPoint(p.X, p.Y);
+    }
+
+    /// <summary>
+    /// Keeps a user-placed overlay where it is, only nudging it back inside the working area when it grows
+    /// (e.g. listings expanded) past the screen edge.
+    /// </summary>
+    private static void KeepOnScreen(OverlayWindow window)
+    {
+        var position = window.Position;
+        var probe = window.Screens.ScreenFromPoint(position) ?? window.Screens.Primary;
+        if (probe is null)
+        {
+            return;
+        }
+
+        var scaling = probe.Scaling;
+        var width = (int)(window.Bounds.Width * scaling);
+        var height = (int)(window.Bounds.Height * scaling);
+        var work = probe.WorkingArea;
+        var x = Math.Clamp(position.X, work.X, Math.Max(work.X, work.Right - width));
+        var y = Math.Clamp(position.Y, work.Y, Math.Max(work.Y, work.Bottom - height));
+        if (x != position.X || y != position.Y)
+        {
+            window.Position = new Avalonia.PixelPoint(x, y);
+        }
     }
 
     private void Position(OverlayWindow window, Screen? screen)
@@ -259,6 +299,12 @@ internal sealed class OverlayService(
 public interface IOverlayContent
 {
     bool IsPinned { get; }
+
+    /// <summary>
+    /// True when the content scrolls its own long sections, so the overlay window must not wrap it in a
+    /// page-level scroller (which would put a scrollbar across the whole popup).
+    /// </summary>
+    bool ManagesOwnScrolling => false;
 
     /// <summary>Called when the content is replaced or the overlay closes: cancel work, release subscriptions.</summary>
     void Detach();

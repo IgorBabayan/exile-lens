@@ -142,6 +142,9 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
 
     public bool ShowWindowControls => !IsEmbedded;
 
+    /// <summary>Only the market listings scroll; the overlay window must not add a page-level scrollbar.</summary>
+    public bool ManagesOwnScrolling => true;
+
     [ObservableProperty]
     private string _gameLabel = string.Empty;
 
