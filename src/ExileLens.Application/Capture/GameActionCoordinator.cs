@@ -1,3 +1,4 @@
+using ExileLens.Application.Chat;
 using ExileLens.Application.Games;
 using ExileLens.Application.History;
 using ExileLens.Application.Maps;
@@ -47,6 +48,11 @@ public sealed class GameDetectionService(IGameWindowService windows, ISettingsSe
 /// <summary>Wires shortcuts → item capture → parsing → overlays. All heavy work stays off the UI thread.</summary>
 public sealed class GameActionCoordinator : IDisposable
 {
+    private static readonly Dictionary<KeyChord, ChatMacro> NoChat = [];
+
+    // Ignores key repeat from a held chat shortcut: 400 ms in Stopwatch ticks.
+    private static readonly long ChatCooldownTicks = System.Diagnostics.Stopwatch.Frequency * 2 / 5;
+
     private readonly IGlobalHotkeyService _hotkeys;
     private readonly IGameWindowService _windows;
     private readonly IGameDetectionService _detection;
@@ -60,8 +66,13 @@ public sealed class GameActionCoordinator : IDisposable
     private readonly ILeagueService _leagues;
     private readonly ISettingsService _settings;
     private readonly IOverlayService _overlay;
+    private readonly IChatCommandService _chat;
     private readonly ILogger<GameActionCoordinator> _logger;
     private int _busy;
+    private long _lastChatAt;
+
+    // Rebuilt only when settings or overlay visibility change; read lock-free on the hotkey thread.
+    private volatile Dictionary<KeyChord, ChatMacro> _chatMap = NoChat;
     private string? _registeredSignature;
     private IReadOnlyDictionary<KeyChord, string> _platformErrors = new Dictionary<KeyChord, string>();
 
@@ -79,6 +90,7 @@ public sealed class GameActionCoordinator : IDisposable
         ILeagueService leagues,
         ISettingsService settings,
         IOverlayService overlay,
+        IChatCommandService chat,
         ILogger<GameActionCoordinator> logger)
     {
         _hotkeys = hotkeys;
@@ -94,6 +106,7 @@ public sealed class GameActionCoordinator : IDisposable
         _leagues = leagues;
         _settings = settings;
         _overlay = overlay;
+        _chat = chat;
         _logger = logger;
     }
 
@@ -196,6 +209,21 @@ public sealed class GameActionCoordinator : IDisposable
             }
         }
 
+        var chatMap = NoChat;
+        if (_settings.Current.Chat.Enabled)
+        {
+            // Invalid or conflicting chat commands are left out; the settings page reports them.
+            ChatCommandRules.Validate(_settings.Current, out var macros);
+            foreach (var chord in macros.Keys)
+            {
+                chords.Add(chord);
+            }
+
+            chatMap = macros;
+        }
+
+        _chatMap = chatMap;
+
         var signature = string.Join('|', chords.Select(c => c.ToString()).Order(StringComparer.Ordinal));
         if (signature != _registeredSignature)
         {
@@ -239,6 +267,11 @@ public sealed class GameActionCoordinator : IDisposable
 
         if (action is null)
         {
+            if (window is not null && _chatMap.TryGetValue(e.Chord, out var macro))
+            {
+                TriggerChat(macro, window);
+            }
+
             return;
         }
 
@@ -289,6 +322,51 @@ public sealed class GameActionCoordinator : IDisposable
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Action {Action} failed", action);
+            }
+            finally
+            {
+                Volatile.Write(ref _busy, 0);
+            }
+        });
+    }
+
+    /// <summary>Pastes a chat command into the focused game. Key repeat from a held shortcut is ignored.</summary>
+    private void TriggerChat(ChatMacro macro, GameWindowInfo window)
+    {
+        if (!_chat.IsSupported)
+        {
+            _overlay.ShowNotice("Chat commands unavailable", _chat.Limitation ?? "Keystrokes cannot be sent to the game on this platform.", window, _windows.GetCursorPosition());
+            return;
+        }
+
+        var now = System.Diagnostics.Stopwatch.GetTimestamp();
+        if (now - Interlocked.Read(ref _lastChatAt) < ChatCooldownTicks)
+        {
+            return;
+        }
+
+        // Shares the busy gate with item capture: both drive the clipboard and the game's input.
+        if (Interlocked.Exchange(ref _busy, 1) == 1)
+        {
+            return;
+        }
+
+        Interlocked.Exchange(ref _lastChatAt, now);
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (_windows.GetActiveGameWindow() is null)
+                {
+                    return;
+                }
+
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                await _chat.SendAsync(macro.Text, macro.Send, cts.Token).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Chat command failed");
             }
             finally
             {

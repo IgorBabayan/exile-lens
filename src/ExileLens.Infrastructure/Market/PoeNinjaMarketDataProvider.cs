@@ -30,7 +30,9 @@ public sealed class PoeNinjaMarketDataProvider(HttpClient http, ISettingsService
 
     private sealed record CachedOverview(ExchangeOverview Overview, string? ETag, DateTimeOffset FetchedAt);
 
-    internal sealed record ExchangeLine(string Id, string Name, decimal PrimaryValue, decimal Volume);
+    internal sealed record ExchangeLine(string Id, string Name, decimal PrimaryValue, decimal Volume, string? Icon = null);
+
+    private const string ImageCdn = "https://web.poecdn.com";
 
     internal sealed record ExchangeOverview(string PrimaryId, string PrimaryName, IReadOnlyList<ExchangeLine> Lines, DateTimeOffset FetchedAt);
 
@@ -104,6 +106,28 @@ public sealed class PoeNinjaMarketDataProvider(HttpClient http, ISettingsService
                 _ => EstimateConfidence.Low,
             };
             return new PriceEstimate(currency, value, value, value, value, 0, 0, confidence, overview.FetchedAt, false, $"{Name} exchange");
+        }
+
+        return null;
+    }
+
+    public string? GetCachedIconUrl(IGameModule game, string league, string name)
+    {
+        // Cache-only lookup across the exchange categories that were already downloaded for this league.
+        foreach (var type in game.NinjaExchangeTypes)
+        {
+            if (!_cache.TryGetValue(Key(game, league, type), out var cached))
+            {
+                continue;
+            }
+
+            foreach (var line in cached.Overview.Lines)
+            {
+                if (line.Icon is not null && string.Equals(line.Name, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    return line.Icon;
+                }
+            }
         }
 
         return null;
@@ -205,6 +229,7 @@ public sealed class PoeNinjaMarketDataProvider(HttpClient http, ISettingsService
         }
 
         var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var icons = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         string? primaryId = null;
         if (root.TryGetProperty("core", out var core) && core.ValueKind == JsonValueKind.Object)
         {
@@ -218,6 +243,7 @@ public sealed class PoeNinjaMarketDataProvider(HttpClient http, ISettingsService
                         if (it.TryGetProperty("id", out var iid) && it.TryGetProperty("name", out var nm) && iid.GetString() is { } i && nm.GetString() is { } n)
                         {
                             names[i] = n;
+                            AddIcon(icons, i, it);
                         }
                     }
                 }
@@ -228,6 +254,7 @@ public sealed class PoeNinjaMarketDataProvider(HttpClient http, ISettingsService
                         if (prop.Value.ValueKind == JsonValueKind.Object && prop.Value.TryGetProperty("name", out var nm) && nm.GetString() is { } n)
                         {
                             names[prop.Name] = n;
+                            AddIcon(icons, prop.Name, prop.Value);
                         }
                     }
                 }
@@ -242,6 +269,7 @@ public sealed class PoeNinjaMarketDataProvider(HttpClient http, ISettingsService
                 if (it.TryGetProperty("id", out var iid) && it.TryGetProperty("name", out var nm) && iid.GetString() is { } i && nm.GetString() is { } n)
                 {
                     names.TryAdd(i, n);
+                    AddIcon(icons, i, it);
                 }
             }
         }
@@ -257,12 +285,31 @@ public sealed class PoeNinjaMarketDataProvider(HttpClient http, ISettingsService
 
             var volume = line.TryGetProperty("volumePrimaryValue", out var vol) && vol.TryGetDecimal(out var v) ? v : 0m;
             var name = names.GetValueOrDefault(id) ?? game.TradeCurrencyNames.GetValueOrDefault(id) ?? id;
-            result.Add(new ExchangeLine(id, name, value, volume));
+            result.Add(new ExchangeLine(id, name, value, volume, icons.GetValueOrDefault(id)));
         }
 
         primaryId ??= game.Game == GameId.Poe2 ? "exalted" : "chaos";
         var primaryName = names.GetValueOrDefault(primaryId) ?? game.TradeCurrencyNames.GetValueOrDefault(primaryId) ?? game.DefaultValuationCurrency;
         return new ExchangeOverview(primaryId, primaryName, result, now);
+    }
+
+    private static void AddIcon(Dictionary<string, string> icons, string id, JsonElement item)
+    {
+        if (icons.ContainsKey(id))
+        {
+            return;
+        }
+
+        var raw = item.TryGetProperty("image", out var img) && img.ValueKind == JsonValueKind.String ? img.GetString()
+            : item.TryGetProperty("icon", out var ic) && ic.ValueKind == JsonValueKind.String ? ic.GetString()
+            : null;
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return;
+        }
+
+        // poe.ninja serves CDN-relative paths ("/gen/image/..."); trade-style absolute URLs are kept as-is.
+        icons[id] = raw.StartsWith('/') ? ImageCdn + raw : raw;
     }
 
     private static string Key(IGameModule game, string league, string type) => $"{game.Game}|{league}|{type}";

@@ -1,0 +1,18 @@
+Item Class: Jewels
+Rarity: Unique
+Foulborn The Green Dream
+Viridian Jewel
+--------
+Limited to: 1
+Radius: Large
+--------
+Item Level: 83
+--------
+Gain 8% of Cold Damage as Extra Chaos Damage
+Passives granting Cold Resistance or all Elemental Resistances in Radius
+also grant increased Maximum Mana at 75% of its value
+--------
+We climb like vines up Chayula's arms,
+reaching into the world that should be ours.
+--------
+Place into an allocated Jewel Socket on the Passive Skill Tree. Right click to remove from the Socket.

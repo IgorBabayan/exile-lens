@@ -99,10 +99,16 @@ public sealed partial class App : Avalonia.Application
             // Warm caches without blocking the UI: stat definitions and league lists.
             var pricing = services.GetRequiredService<PriceCheckService>();
             var leagues = services.GetRequiredService<ILeagueService>();
+            var currencyIcons = services.GetRequiredService<CurrencyIconProvider>();
+            var warmCurrencyIcons = services.GetRequiredService<ISettingsService>().Current.Trade.ShowCurrencyIcons;
             foreach (var module in services.GetRequiredService<IGameRegistry>().All)
             {
                 _ = leagues.GetLeaguesAsync(module, CancellationToken.None);
                 _ = pricing.PreloadAsync(module, CancellationToken.None);
+                if (warmCurrencyIcons)
+                {
+                    _ = currencyIcons.WarmAsync(module);
+                }
             }
         }
         catch (Exception ex)
@@ -207,9 +213,21 @@ public sealed partial class App : Avalonia.Application
         }
     }
 
+    private static WindowIcon? _icon;
+
+    /// <summary>
+    /// Shared window/tray icon, decoded once. On Windows the multi-size .ico is used so the shell picks the hand-sized
+    /// 16/20/24/32px frames for the title bar, taskbar and tray instead of downscaling the 256px PNG (which looks jagged).
+    /// </summary>
     internal static WindowIcon LoadIcon()
     {
-        using var stream = AssetLoader.Open(new Uri("avares://ExileLens/Assets/icon.png"));
-        return new WindowIcon(stream);
+        if (_icon is not null)
+        {
+            return _icon;
+        }
+
+        var asset = OperatingSystem.IsWindows() ? "icon.ico" : "icon.png";
+        using var stream = AssetLoader.Open(new Uri($"avares://ExileLens/Assets/{asset}"));
+        return _icon = new WindowIcon(stream);
     }
 }

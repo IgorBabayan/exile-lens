@@ -56,3 +56,11 @@ full currency's price ÷ stack size (10). All money math uses `decimal`.
 seen on a real map that isn't in the catalog is recorded in `discovered-modifiers.json` under a deterministic id,
 appears on the Map Modifiers page, and stays **Unclassified** until you classify it. An unknown modifier never
 counts as safe.
+
+**PoE 1 source.** The PoE 1 catalog mirrors the English map modifier list of [poe.re](https://poe.re/maps)
+(data from https://data.poe.re, © Vegard Veiset; modifier text © Grinding Gear Games), used under its data terms
+for small free tools, with credit. Multi-line modifiers are split into one entry per line, because each line is
+matched on its own; identical lines are merged. Ids of modifiers that were already in the catalog are kept, so
+saved profile rules keep working. Removed from the game and therefore from the catalog: physical/elemental reflect
+and the old combined attack/cast/movement speed line — a map that still shows one is recorded as a discovered
+modifier.

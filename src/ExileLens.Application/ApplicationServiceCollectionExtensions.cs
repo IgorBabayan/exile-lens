@@ -1,4 +1,5 @@
 using ExileLens.Application.Capture;
+using ExileLens.Application.Chat;
 using ExileLens.Application.Games;
 using ExileLens.Application.History;
 using ExileLens.Application.Maps;
@@ -35,6 +36,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddSingleton<IPriceEstimationService>(sp => sp.GetRequiredService<PriceCheckService>());
         services.AddSingleton<IItemCaptureService, ItemCaptureService>();
         services.AddSingleton<IGameDetectionService, GameDetectionService>();
+        services.AddSingleton<IChatCommandService, ChatCommandService>();
         services.AddSingleton<GameActionCoordinator>();
         return services;
     }

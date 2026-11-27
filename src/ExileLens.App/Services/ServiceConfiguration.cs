@@ -49,6 +49,8 @@ internal static class ServiceConfiguration
         services.AddSingleton<AvaloniaClipboardService>();
         services.AddSingleton<IClipboardService>(sp => sp.GetRequiredService<AvaloniaClipboardService>());
         services.AddSingleton<DangerPalette>();
+        services.AddSingleton<ItemIconLoader>();
+        services.AddSingleton<CurrencyIconProvider>();
         services.AddSingleton<OverlayService>();
         services.AddSingleton<IOverlayService>(sp => sp.GetRequiredService<OverlayService>());
 

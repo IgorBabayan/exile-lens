@@ -22,6 +22,7 @@ namespace ExileLens.Application.Storage;
 [JsonSerializable(typeof(DiscoveredModifiersDocument))]
 [JsonSerializable(typeof(HistoryDocument))]
 [JsonSerializable(typeof(RewardRuleSet))]
+[JsonSerializable(typeof(UniqueDustDocument))]
 [JsonSerializable(typeof(List<MapModifierDefinition>))]
 public sealed partial class AppJsonContext : JsonSerializerContext;
 

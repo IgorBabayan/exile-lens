@@ -130,13 +130,13 @@ public sealed class MapAnalysisTests
         var item = Fixture.Parse("poe1/cemetery-map.txt", GameId.Poe1);
         var catalog = new MapModifierCatalog(GameId.Poe1, Games.Poe1.MapModifiers);
         var melee = new ModifierProfile { Name = "Melee", Game = GameId.Poe1 };
-        melee.Rules["poe1.reflect-physical"] = new ModifierRule { ModifierId = "poe1.reflect-physical", Level = DangerLevel.Dangerous };
+        melee.Rules["poe1.no-regen"] = new ModifierRule { ModifierId = "poe1.no-regen", Level = DangerLevel.Dangerous };
         var caster = melee.Clone("Caster");
-        caster.Rules["poe1.reflect-physical"].Level = DangerLevel.Safe;
+        caster.Rules["poe1.no-regen"].Level = DangerLevel.Safe;
 
         Assert.AreEqual(DangerLevel.Dangerous, Analyzer.Analyze(item, melee, catalog).Modifiers[0].Level);
-        Assert.AreEqual(DangerLevel.Safe, Analyzer.Analyze(item, caster, catalog).Modifiers.Single(m => m.ModifierId == "poe1.reflect-physical").Level);
-        Assert.AreEqual(DangerLevel.Dangerous, melee.Rules["poe1.reflect-physical"].Level, "clone is deep");
+        Assert.AreEqual(DangerLevel.Safe, Analyzer.Analyze(item, caster, catalog).Modifiers.Single(m => m.ModifierId == "poe1.no-regen").Level);
+        Assert.AreEqual(DangerLevel.Dangerous, melee.Rules["poe1.no-regen"].Level, "clone is deep");
     }
 
     [TestMethod]

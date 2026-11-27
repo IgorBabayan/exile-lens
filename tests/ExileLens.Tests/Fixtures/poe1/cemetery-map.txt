@@ -10,8 +10,8 @@ Monster Pack Size: +30% (augmented)
 --------
 Item Level: 83
 --------
-Monsters reflect 18% of Physical Damage
--12% maximum Player Resistances
+Players cannot Regenerate Life, Mana or Energy Shield
+Players have -12% to all maximum Resistances
 Players are Cursed with Elemental Weakness
 Monsters have 60% increased Area of Effect
 --------

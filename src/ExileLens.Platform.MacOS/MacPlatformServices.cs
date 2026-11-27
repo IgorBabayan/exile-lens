@@ -284,6 +284,20 @@ public sealed class MacKeyboardInputService : IKeyboardInputService
         return Task.CompletedTask;
     }
 
+    public void SendChatKeystroke(ChatKeystroke keystroke)
+    {
+        // Explicit event flags replace whatever modifiers are physically held, so nothing needs releasing.
+        var (key, flags) = keystroke switch
+        {
+            ChatKeystroke.SelectAll => ((ushort)0, MacNative.FlagCommand),
+            ChatKeystroke.Paste => ((ushort)9, MacNative.FlagCommand),
+            _ => ((ushort)36, 0UL),
+        };
+
+        Post(key, true, flags);
+        Post(key, false, flags);
+    }
+
     private static void Post(ushort key, bool down, ulong flags)
     {
         var e = MacNative.CGEventCreateKeyboardEvent(0, key, down);

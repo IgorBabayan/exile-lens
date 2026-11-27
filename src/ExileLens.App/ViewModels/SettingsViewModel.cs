@@ -1,15 +1,19 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using ExileLens.App.Services;
 using ExileLens.Application.Capture;
+using ExileLens.Application.Chat;
 using ExileLens.Application.Games;
 using ExileLens.Application.Market;
 using ExileLens.Application.Platform;
 using ExileLens.Application.Settings;
 using ExileLens.Application.Updates;
 using ExileLens.Core.Items;
+using ExileLens.Core.Trade;
 
 namespace ExileLens.App.ViewModels;
 
@@ -19,25 +23,57 @@ public sealed record ThemeOption(ThemeMode Value, string Label);
 
 public sealed record PlacementOption(OverlayPlacement Value, string Label);
 
+public sealed record ListingStatusOption(TradeListingStatus Value, string Label);
+
+/// <summary>Drop-down row for a trade buyout currency; icons arrive asynchronously after the page is first shown.</summary>
+public sealed partial class PriceCurrencyOption(TradePriceCurrency currency) : ObservableObject
+{
+    public TradePriceCurrency Currency { get; } = currency;
+
+    public string Label => Currency.Label;
+
+    [ObservableProperty]
+    private Bitmap? _icon;
+
+    [ObservableProperty]
+    private Bitmap? _secondIcon;
+}
+
 public sealed partial class SettingsViewModel : PageViewModel
 {
     private readonly ISettingsService _settings;
-    private readonly IGameRegistry _games;
-    private readonly ILeagueService _leagues;
     private readonly IAutoStartService _autoStart;
     private readonly IUpdateService _updates;
+    private readonly ITradeDataProvider _tradeData;
+    private readonly ItemIconLoader _icons;
+    private readonly IGameModule _iconGame;
     private UpdateInfo? _update;
+    private bool _currencyIconsRequested;
 
-    public SettingsViewModel(ISettingsService settings, IGameRegistry games, ILeagueService leagues, IAutoStartService autoStart, IUpdateService updates)
+    public SettingsViewModel(
+        ISettingsService settings,
+        IGameRegistry games,
+        ILeagueService leagues,
+        IAutoStartService autoStart,
+        IUpdateService updates,
+        ITradeDataProvider tradeData,
+        ItemIconLoader icons)
     {
         _settings = settings;
-        _games = games;
-        _leagues = leagues;
         _autoStart = autoStart;
         _updates = updates;
+        _tradeData = tradeData;
+        _icons = icons;
+
+        // The currency list mirrors the PoE 1 trade site, so its art comes from the PoE 1 static data.
+        _iconGame = games.Get(GameId.Poe1);
+        PriceCurrencies = TradePriceCurrencies.All.Select(c => new PriceCurrencyOption(c)).ToArray();
         GameOptions = games.All.Select(g => new GameOption(g.Game, g.DisplayName)).ToList();
-        _shortcutGame = GameOptions[^1];
+        _shortcutGame = GameOptions.FirstOrDefault(o => o.Game == GameId.Poe1) ?? GameOptions[0];
+        LeagueSelectors = games.All.Select(g => new LeagueSelectorViewModel(g, settings, leagues)).ToList();
         CurrentVersion = updates.CurrentVersion.ToString();
+        ChatCommands = new ObservableCollection<ChatCommandViewModel>(settings.Current.Chat.Commands.Select(CreateChatRow));
+        RefreshChatErrors();
     }
 
     public IReadOnlyList<GameSelectionOption> GameSelections { get; } =
@@ -168,8 +204,6 @@ public sealed partial class SettingsViewModel : PageViewModel
         OnPropertyChanged(nameof(PriceCheckHotkey));
         OnPropertyChanged(nameof(MapCheckHotkey));
         OnPropertyChanged(nameof(CloseOverlayHotkey));
-        OnPropertyChanged(nameof(League));
-        _ = LoadLeaguesAsync();
     }
 
     public string PriceCheckHotkey { get => G.PriceCheckHotkey; set => SetShortcut(g => g.PriceCheckHotkey = value); }
@@ -191,6 +225,7 @@ public sealed partial class SettingsViewModel : PageViewModel
         {
             var game = ShortcutGame.Game;
             _settings.Update(s => mutate(s.For(game)));
+            RefreshChatErrors();
         }
 
         OnPropertyChanged(name);
@@ -209,39 +244,172 @@ public sealed partial class SettingsViewModel : PageViewModel
         });
         ShortcutError = null;
         OnShortcutGameChanged(ShortcutGame);
+        RefreshChatErrors();
     }
 
-    // ---------- League ----------
-    public ObservableCollection<string> LeagueOptions { get; } = [];
+    // ---------- Chat ----------
+    public bool ChatEnabled { get => _settings.Current.Chat.Enabled; set => Set(s => s.Chat.Enabled = value); }
 
-    public string? League
+    public ObservableCollection<ChatCommandViewModel> ChatCommands { get; }
+
+    [RelayCommand]
+    private void AddChatCommand()
     {
-        get => G.League;
-        set
+        var command = new ChatCommand();
+
+        // Copy-on-write: a background save may be enumerating the current list.
+        _settings.Update(s => s.Chat.Commands = [.. s.Chat.Commands, command]);
+        ChatCommands.Add(CreateChatRow(command));
+    }
+
+    [RelayCommand]
+    private void RemoveChatCommand(ChatCommandViewModel? row)
+    {
+        if (row is null)
         {
-            var game = ShortcutGame.Game;
-            _settings.Update(s => s.For(game).League = string.IsNullOrWhiteSpace(value) ? null : value);
-            OnPropertyChanged();
+            return;
+        }
+
+        _settings.Update(s => s.Chat.Commands = s.Chat.Commands.Where(c => !ReferenceEquals(c, row.Model)).ToList());
+        ChatCommands.Remove(row);
+        RefreshChatErrors();
+    }
+
+    [RelayCommand]
+    private void ResetChatCommands()
+    {
+        var defaults = ChatSettings.CreateDefaultCommands();
+        _settings.Update(s => s.Chat.Commands = defaults);
+        ChatCommands.Clear();
+        foreach (var command in defaults)
+        {
+            ChatCommands.Add(CreateChatRow(command));
+        }
+
+        RefreshChatErrors();
+    }
+
+    private ChatCommandViewModel CreateChatRow(ChatCommand command) => new(command, _settings, RefreshChatErrors);
+
+    private void RefreshChatErrors()
+    {
+        var errors = ChatCommandRules.Validate(_settings.Current, out _);
+        foreach (var row in ChatCommands)
+        {
+            row.Error = errors.GetValueOrDefault(row.Model);
         }
     }
 
-    private async Task LoadLeaguesAsync()
+    // ---------- Leagues (per game) ----------
+    public IReadOnlyList<LeagueSelectorViewModel> LeagueSelectors { get; }
+
+    [RelayCommand]
+    private Task RefreshLeaguesAsync()
     {
-        var leagues = await _leagues.GetLeaguesAsync(_games.Get(ShortcutGame.Game), CancellationToken.None);
-        LeagueOptions.Clear();
-        foreach (var l in leagues)
+        var loads = new Task[LeagueSelectors.Count];
+        for (var i = 0; i < loads.Length; i++)
         {
-            LeagueOptions.Add(l.Id);
+            loads[i] = LeagueSelectors[i].LoadAsync(force: true);
         }
 
-        OnPropertyChanged(nameof(League));
+        return Task.WhenAll(loads);
     }
 
     // ---------- Trade ----------
-    public string PreferredCurrency
+    public IReadOnlyList<ListingStatusOption> ListingStatuses { get; } =
+        Enum.GetValues<TradeListingStatus>().Select(v => new ListingStatusOption(v, TradeListingStatuses.Label(v))).ToArray();
+
+    public ListingStatusOption ListingStatus
     {
-        get => _settings.Current.Rewards.ValuationCurrency ?? string.Empty;
-        set => Set(s => s.Rewards.ValuationCurrency = string.IsNullOrWhiteSpace(value) ? null : value.Trim());
+        get => ListingStatuses.FirstOrDefault(o => o.Value == _settings.Current.Trade.ListingStatus) ?? ListingStatuses[(int)TradeListingStatus.InstantBuyout];
+        set
+        {
+            if (value is not null)
+            {
+                Set(s => s.Trade.ListingStatus = value.Value);
+            }
+        }
+    }
+
+    public IReadOnlyList<PriceCurrencyOption> PriceCurrencies { get; }
+
+    public PriceCurrencyOption PreferredCurrency
+    {
+        get
+        {
+            var selected = TradePriceCurrencies.Find(_settings.Current.Trade.PriceCurrency);
+            foreach (var option in PriceCurrencies)
+            {
+                if (ReferenceEquals(option.Currency, selected))
+                {
+                    return option;
+                }
+            }
+
+            return PriceCurrencies[0];
+        }
+        set
+        {
+            if (value is not null)
+            {
+                Set(s => s.Trade.PriceCurrency = value.Currency.Key);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Fetches the id → URL map once (disk cached for a week), then decodes each icon off the UI thread through the
+    /// shared icon cache; repeated ids (chaos) share one download and one bitmap.
+    /// </summary>
+    private async Task LoadCurrencyIconsAsync()
+    {
+        IReadOnlyDictionary<string, string> urls;
+        try
+        {
+            urls = await _tradeData.GetCurrencyIconsAsync(_iconGame, CancellationToken.None);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or IOException)
+        {
+            urls = new Dictionary<string, string>();
+        }
+
+        if (urls.Count == 0)
+        {
+            _currencyIconsRequested = false; // retry the next time the page is opened
+            return;
+        }
+
+        var loads = new List<Task>(PriceCurrencies.Count);
+        foreach (var option in PriceCurrencies)
+        {
+            var ids = option.Currency.IconIds;
+            if (ids.Length > 0 && urls.TryGetValue(ids[0], out var first))
+            {
+                loads.Add(SetIconAsync(first, b => option.Icon = b));
+            }
+
+            if (ids.Length > 1 && urls.TryGetValue(ids[1], out var second))
+            {
+                loads.Add(SetIconAsync(second, b => option.SecondIcon = b));
+            }
+        }
+
+        await Task.WhenAll(loads);
+    }
+
+    private async Task SetIconAsync(string url, Action<Bitmap> apply)
+    {
+        if (_icons.TryGetCached(url) is { } cached)
+        {
+            apply(cached);
+            return;
+        }
+
+        // Resumes on the UI thread, where the bound property is set.
+        if (await _icons.LoadAsync(url, CancellationToken.None) is { } bitmap)
+        {
+            apply(bitmap);
+        }
     }
 
     public decimal? MaxListings { get => _settings.Current.Trade.MaxListings; set => Set(s => s.Trade.MaxListings = (int)Math.Clamp(value ?? 20, 5, 100)); }
@@ -249,6 +417,8 @@ public sealed partial class SettingsViewModel : PageViewModel
     public decimal? CacheMinutes { get => _settings.Current.Trade.CacheMinutes; set => Set(s => s.Trade.CacheMinutes = (int)Math.Clamp(value ?? 5, 0, 120)); }
 
     public bool AutoSearch { get => _settings.Current.Trade.AutoSearch; set => Set(s => s.Trade.AutoSearch = value); }
+
+    public bool ShowCurrencyIcons { get => _settings.Current.Trade.ShowCurrencyIcons; set => Set(s => s.Trade.ShowCurrencyIcons = value); }
 
     public string MinimumTradeValue
     {
@@ -265,8 +435,6 @@ public sealed partial class SettingsViewModel : PageViewModel
     public double ModifierMinPercent { get => _settings.Current.Trade.ModifierMinPercent; set => Set(s => s.Trade.ModifierMinPercent = Math.Round(Math.Clamp(value, 50, 100))); }
 
     public bool EnableModifiersByDefault { get => _settings.Current.Trade.EnableModifiersByDefault; set => Set(s => s.Trade.EnableModifiersByDefault = value); }
-
-    public bool OnlineOnly { get => _settings.Current.Trade.OnlineOnly; set => Set(s => s.Trade.OnlineOnly = value); }
 
     public string NinjaBaseUrl
     {
@@ -385,7 +553,20 @@ public sealed partial class SettingsViewModel : PageViewModel
         }
     }
 
-    public override void OnActivated() => _ = LoadLeaguesAsync();
+    public override void OnActivated()
+    {
+        if (!_currencyIconsRequested)
+        {
+            _currencyIconsRequested = true;
+            _ = LoadCurrencyIconsAsync();
+        }
+
+        // Cheap when cached: the shared list is reused and the pickers are rebuilt only if it changed.
+        foreach (var selector in LeagueSelectors)
+        {
+            _ = selector.LoadAsync(force: false);
+        }
+    }
 
     private void Set(Action<AppSettings> mutate, [CallerMemberName] string? name = null)
     {

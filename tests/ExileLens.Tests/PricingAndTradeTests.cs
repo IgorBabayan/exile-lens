@@ -160,6 +160,124 @@ public sealed class TradeQueryTests
     }
 
     [TestMethod]
+    public void UnidentifiedUniqueSearchesItsBaseUntilAUniqueIsChosen()
+    {
+        var item = Fixture.Parse("poe1/unidentified-unique-bow.txt", GameId.Poe1);
+        Assert.IsFalse(item.IsIdentified);
+        Assert.IsNull(item.Name, "an unidentified copy only names the base");
+        Assert.AreEqual("Imperial Bow", item.BaseType);
+
+        var builder = new TradeQueryBuilder();
+        var options = new TradeQueryOptions(Games.Poe1.FilterLayout);
+        var query = builder.Build(item, builder.CreateDefaultFilters(item, Stats(), options), options)["query"]!;
+        Assert.IsNull(query["name"]);
+        Assert.AreEqual("Imperial Bow", query["type"]!.GetValue<string>(), "without a name the base must still narrow the search");
+        Assert.AreEqual("unique", query["filters"]!["type_filters"]!["filters"]!["rarity"]!["option"]!.GetValue<string>());
+
+        var chosen = item.WithName("Lioneye's Glare");
+        Assert.AreEqual("Lioneye's Glare", chosen.DisplayName);
+        Assert.AreEqual(item.ItemLevel, chosen.ItemLevel);
+        Assert.AreSame(item.Modifiers, chosen.Modifiers);
+        query = builder.Build(chosen, builder.CreateDefaultFilters(chosen, Stats(), options), options)["query"]!;
+        Assert.AreEqual("Lioneye's Glare", query["name"]!.GetValue<string>());
+        Assert.AreEqual("Imperial Bow", query["type"]!.GetValue<string>());
+        Assert.AreEqual("false", query["filters"]!["misc_filters"]!["filters"]!["foulborn_item"]!["option"]!.GetValue<string>());
+    }
+
+    [TestMethod]
+    public void FoulbornUniqueSearchesBaseNameWithFoulbornFilter()
+    {
+        var item = Fixture.Parse("poe1/foulborn-unique-armour.txt", GameId.Poe1);
+        Assert.IsTrue(item.IsFoulborn);
+        Assert.AreEqual("Foulborn Zahndethus' Cassock", item.DisplayName, "display keeps the in-game name");
+
+        var builder = new TradeQueryBuilder();
+        var options = new TradeQueryOptions(Games.Poe1.FilterLayout);
+        var query = builder.Build(item, builder.CreateDefaultFilters(item, Stats(), options), options)["query"]!;
+        Assert.AreEqual("Zahndethus' Cassock", query["name"]!.GetValue<string>());
+        Assert.AreEqual("Sage's Robe", query["type"]!.GetValue<string>());
+        Assert.AreEqual("true", query["filters"]!["misc_filters"]!["filters"]!["foulborn_item"]!["option"]!.GetValue<string>());
+    }
+
+    [TestMethod]
+    public void RegularUniqueExcludesFoulbornCopies()
+    {
+        var item = Fixture.Parse("poe1/unique-amulet.txt", GameId.Poe1);
+        Assert.IsFalse(item.IsFoulborn);
+
+        var builder = new TradeQueryBuilder();
+        var options = new TradeQueryOptions(Games.Poe1.FilterLayout);
+        var query = builder.Build(item, builder.CreateDefaultFilters(item, Stats(), options), options)["query"]!;
+        Assert.AreEqual("false", query["filters"]!["misc_filters"]!["filters"]!["foulborn_item"]!["option"]!.GetValue<string>());
+    }
+
+    private const string GreenDreamManaStat = "explicit.stat_1535088208";
+
+    private static StatIndex JewelStats() => new(
+    [
+        new TradeStat("explicit.stat_cold_as_chaos", "Gain #% of Cold Damage as Extra Chaos Damage", "explicit"),
+        new TradeStat(GreenDreamManaStat,
+            "Passives granting Cold Resistance or all Elemental Resistances in Radius\nalso grant increased Maximum Mana at #% of its value", "explicit"),
+        new TradeStat("explicit.stat_other_radius",
+            "Passives granting Fire Resistance or all Elemental Resistances in Radius\nalso grant increased Maximum Life at #% of its value", "explicit"),
+    ]);
+
+    [TestMethod]
+    public void MultilineModifierBecomesOneFilter()
+    {
+        var item = Fixture.Parse("poe1/foulborn-unique-jewel-multiline.txt", GameId.Poe1);
+        Assert.AreEqual(3, item.Modifiers.Count, "the clipboard still carries two lines for the radius modifier");
+
+        var builder = new TradeQueryBuilder();
+        var options = new TradeQueryOptions(Games.Poe1.FilterLayout);
+        var stats = builder.CreateDefaultFilters(item, JewelStats(), options).Where(f => f.Kind == FilterKind.Stat).ToList();
+
+        Assert.AreEqual(2, stats.Count);
+        var radius = stats.Single(f => f.StatId == GreenDreamManaStat);
+        StringAssert.StartsWith(radius.Label, "Passives granting Cold Resistance");
+        StringAssert.EndsWith(radius.Label, "at 75% of its value");
+        Assert.AreEqual(75d, radius.RolledValue, "the value comes from the second line");
+        Assert.AreEqual(75d, radius.Min, "uniques search from the rolled value");
+
+        radius.Enabled = true;
+        var filters = builder.Build(item, stats, options)["query"]!["stats"]![0]!["filters"]!.AsArray();
+        Assert.AreEqual(1, filters.Count);
+        Assert.AreEqual(GreenDreamManaStat, filters[0]!["id"]!.GetValue<string>());
+    }
+
+    [TestMethod]
+    public void LoneLineOfMultilineStatStillResolves()
+    {
+        var index = JewelStats();
+        Assert.IsTrue(index.TryResolve("explicit", ModifierText.Normalize("also grant increased Maximum Mana at 75% of its value"), false, out var s));
+        Assert.AreEqual(GreenDreamManaStat, s.Id);
+    }
+
+    [TestMethod]
+    public void UniqueStatMinimumsUseTheRolledValue()
+    {
+        var item = Fixture.Parse("poe1/unique-helmet-keystone.txt", GameId.Poe1);
+        var index = new StatIndex(
+        [
+            new TradeStat("explicit.stat_es_global", "+# to maximum Energy Shield", "explicit"),
+            new TradeStat("explicit.stat_4052037485", "+# to maximum Energy Shield (Local)", "explicit"),
+            new TradeStat("explicit.stat_3767873853", "Reflects # Physical Damage to Melee Attackers", "explicit"),
+            new TradeStat("explicit.stat_3441651621", "+# Physical Damage taken from Attack Hits", "explicit"),
+            new TradeStat("explicit.stat_98977150", "Pain Attunement", "explicit"),
+        ]);
+
+        var options = new TradeQueryOptions(Games.Poe1.FilterLayout, 90);
+        var stats = new TradeQueryBuilder().CreateDefaultFilters(item, index, options).Where(f => f.Kind == FilterKind.Stat).ToList();
+
+        Assert.AreEqual(4, stats.Count, "keystone lines are searchable too");
+        var es = stats.Single(f => f.StatId == "explicit.stat_4052037485");
+        Assert.AreEqual(225d, es.Min, "a perfect roll must not search from 90% of itself");
+        Assert.AreEqual(5d, stats.Single(f => f.StatId == "explicit.stat_3767873853").Min);
+        Assert.AreEqual(25d, stats.Single(f => f.StatId == "explicit.stat_3441651621").Min);
+        Assert.IsNull(stats.Single(f => f.StatId == "explicit.stat_98977150").Min);
+    }
+
+    [TestMethod]
     public void Poe1SocketsAndLinksUseSocketFilters()
     {
         var item = Fixture.Parse("poe1/six-link-armour.txt", GameId.Poe1);
@@ -170,6 +288,40 @@ public sealed class TradeQueryTests
         var sockets = query["filters"]!["socket_filters"]!["filters"]!;
         Assert.AreEqual(6d, sockets["links"]!["min"]!.GetValue<double>());
         Assert.AreEqual(6d, sockets["sockets"]!["min"]!.GetValue<double>());
+    }
+
+    [TestMethod]
+    public void QueryDefaultsToInstantBuyoutWithoutPriceFilter()
+    {
+        var item = Fixture.Parse("poe1/unique-amulet.txt", GameId.Poe1);
+        var builder = new TradeQueryBuilder();
+        var options = new TradeQueryOptions(Games.Poe1.FilterLayout);
+        var query = builder.Build(item, builder.CreateDefaultFilters(item, null, options), options)["query"]!;
+        Assert.AreEqual("securable", query["status"]!["option"]!.GetValue<string>());
+        Assert.IsNull(query["filters"]!["trade_filters"]);
+    }
+
+    [TestMethod]
+    public void QueryAppliesListingStatusAndPriceCurrency()
+    {
+        var item = Fixture.Parse("poe1/unique-amulet.txt", GameId.Poe1);
+        var builder = new TradeQueryBuilder();
+        var options = new TradeQueryOptions(Games.Poe1.FilterLayout, Status: TradeListingStatus.InPersonOnline,
+            PriceOption: TradePriceCurrencies.Find("divine").ApiId(GameId.Poe1));
+        var query = builder.Build(item, builder.CreateDefaultFilters(item, null, options), options)["query"]!;
+        Assert.AreEqual("online", query["status"]!["option"]!.GetValue<string>());
+        Assert.AreEqual("divine", query["filters"]!["trade_filters"]!["filters"]!["price"]!["option"]!.GetValue<string>());
+    }
+
+    [TestMethod]
+    public void PriceCurrencyCatalogFallsBackToAny()
+    {
+        Assert.AreSame(TradePriceCurrencies.Any, TradePriceCurrencies.Find(null));
+        Assert.AreSame(TradePriceCurrencies.Any, TradePriceCurrencies.Find("unknown"));
+        Assert.IsNull(TradePriceCurrencies.Find("chromatic").ApiId(GameId.Poe1));
+        Assert.AreEqual("chrome", TradePriceCurrencies.Find("chrome").ApiId(GameId.Poe1));
+        Assert.IsNull(TradePriceCurrencies.Find("chrome").ApiId(GameId.Poe2), "PoE 2 has no Chromatic Orb option");
+        Assert.AreEqual(19, TradePriceCurrencies.All.Count);
     }
 
     [TestMethod]
@@ -219,12 +371,47 @@ public sealed class TradeQueryTests
     }
 
     [TestMethod]
-    public void StatsResponseExpandsMultilineEntries()
+    public void StatsResponseKeepsMultilineEntriesWhole()
     {
         const string json = """{"result":[{"label":"Explicit","entries":[{"id":"explicit.stat_1","text":"+# to maximum Life","type":"explicit"},{"id":"explicit.stat_2","text":"Line one #\nLine two #","type":"explicit"}]}]}""";
         using var doc = JsonDocument.Parse(json);
         var stats = TradeDataProvider.ParseStats(doc.RootElement).ToList();
-        Assert.AreEqual(3, stats.Count);
-        Assert.AreEqual("explicit.stat_2", stats[2].Id);
+        Assert.AreEqual(2, stats.Count);
+        Assert.AreEqual("explicit.stat_2", stats[1].Id);
+        Assert.AreEqual("Line one #\nLine two #", stats[1].Text);
+    }
+
+    [TestMethod]
+    public void ItemDataYieldsSortedDistinctUniquesPerBase()
+    {
+        const string json = """{"result":[{"id":"weapon","label":"Weapons","entries":[{"type":"Imperial Bow"},{"name":"Lioneye's Glare","type":"Imperial Bow","flags":{"unique":true}},{"name":"Doomfletch","type":"Imperial Bow","flags":{"unique":true}},{"name":"Doomfletch","type":"Imperial Bow","disc":"legacy","flags":{"unique":true}},{"name":"Not unique","type":"Imperial Bow","flags":{"unique":false}},{"name":"Voltaxic Rift","type":"Spine Bow","flags":{"unique":true}}]},{"id":"accessory","entries":[{"name":"Astramentis","type":"Onyx Amulet","flags":{"unique":true}}]}]}""";
+        using var doc = JsonDocument.Parse(json);
+        var uniques = TradeDataProvider.ParseUniques(doc.RootElement);
+        Assert.AreEqual(3, uniques.Count);
+        CollectionAssert.AreEqual(new[] { "Doomfletch", "Lioneye's Glare" }, uniques["imperial bow"]);
+        CollectionAssert.AreEqual(new[] { "Voltaxic Rift" }, uniques["Spine Bow"]);
+        CollectionAssert.AreEqual(new[] { "Astramentis" }, uniques["Onyx Amulet"]);
+    }
+
+    [TestMethod]
+    public void StaticDataYieldsCurrencyIconUrls()
+    {
+        const string json = """{"result":[{"id":"Currency","label":"Currency","entries":[{"id":"chaos","text":"Chaos Orb","image":"/gen/image/abc/Chaos.png"},{"id":"divine","text":"Divine Orb","image":"https://web.poecdn.com/gen/image/def/Divine.png"},{"id":"noimage","text":"No image"}]},{"id":"Fragments","entries":[{"id":"frag","image":"/x.png"}]}]}""";
+        using var doc = JsonDocument.Parse(json);
+        var icons = TradeDataProvider.ParseCurrencyIcons(doc.RootElement);
+        Assert.AreEqual(2, icons.Count);
+        Assert.AreEqual("https://web.poecdn.com/gen/image/abc/Chaos.png", icons["chaos"]);
+        Assert.AreEqual("https://web.poecdn.com/gen/image/def/Divine.png", icons["DIVINE"]);
+    }
+
+    [TestMethod]
+    public void EveryPriceCurrencyExceptAnyHasAnIcon()
+    {
+        foreach (var currency in TradePriceCurrencies.All)
+        {
+            Assert.AreEqual(currency.Key != TradePriceCurrencies.AnyKey, currency.IconIds.Length > 0, currency.Key);
+        }
+
+        CollectionAssert.AreEqual(new[] { "chaos", "divine" }, TradePriceCurrencies.Find("chaos_divine").IconIds);
     }
 }

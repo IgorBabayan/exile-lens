@@ -19,6 +19,14 @@ public static class EmbeddedGameData
                ?? throw new InvalidDataException($"Reward rules '{resourceSuffix}' are empty.");
     }
 
+    public static UniqueDustTable LoadUniqueDust(Assembly assembly, string resourceSuffix, string? overridePath = null)
+    {
+        using var stream = Open(assembly, resourceSuffix, overridePath);
+        var document = JsonSerializer.Deserialize(stream, AppJsonContext.Default.UniqueDustDocument)
+                       ?? throw new InvalidDataException($"Unique dust table '{resourceSuffix}' is empty.");
+        return new UniqueDustTable(document);
+    }
+
     public static IReadOnlyList<MapModifierDefinition> LoadMapModifiers(Assembly assembly, string resourceSuffix, string? overridePath = null)
     {
         using var stream = Open(assembly, resourceSuffix, overridePath);

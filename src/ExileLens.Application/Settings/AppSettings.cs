@@ -1,4 +1,5 @@
 using ExileLens.Core.Items;
+using ExileLens.Core.Trade;
 
 namespace ExileLens.Application.Settings;
 
@@ -35,6 +36,7 @@ public sealed class AppSettings
     public MapSettings Maps { get; set; } = new();
     public RewardSettings Rewards { get; set; } = new();
     public HistorySettings History { get; set; } = new();
+    public ChatSettings Chat { get; set; } = new();
     public GameSettings Poe1 { get; set; } = GameSettings.CreateDefault(GameId.Poe1);
     public GameSettings Poe2 { get; set; } = GameSettings.CreateDefault(GameId.Poe2);
 
@@ -79,7 +81,13 @@ public sealed class TradeSettings
     public decimal MinimumTradeValue { get; set; } = 1m;
     public double ModifierMinPercent { get; set; } = 90;
     public bool EnableModifiersByDefault { get; set; } = true;
-    public bool OnlineOnly { get; set; } = true;
+    public TradeListingStatus ListingStatus { get; set; } = TradeListingStatus.InstantBuyout;
+
+    /// <summary>Buyout currency of the trade search (<see cref="TradePriceCurrency.Key"/>); "any" leaves it unrestricted.</summary>
+    public string PriceCurrency { get; set; } = TradePriceCurrencies.AnyKey;
+
+    /// <summary>Show currency art instead of currency names next to prices in the price-check overlay.</summary>
+    public bool ShowCurrencyIcons { get; set; }
     public string MarketDataProvider { get; set; } = "poe.ninja";
 
     /// <summary>Optional base URL of a self-hosted caching proxy for poe.ninja (recommended by poe.ninja for desktop clients).</summary>
@@ -110,6 +118,38 @@ public sealed class HistorySettings
 {
     public int MaxPriceChecks { get; set; } = 200;
     public int MaxMapChecks { get; set; } = 200;
+}
+
+public sealed class ChatSettings
+{
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// Shared by both games. The list is replaced (never mutated in place) when commands are added or removed
+    /// so a background save can enumerate it safely.
+    /// </summary>
+    public List<ChatCommand> Commands { get; set; } = CreateDefaultCommands();
+
+    public static List<ChatCommand> CreateDefaultCommands() =>
+    [
+        new() { Text = "/heist", Hotkey = "F8" },
+        new() { Text = "/menagerie", Hotkey = "F10" },
+        new() { Text = "/delve", Hotkey = "F9" },
+        new() { Text = "/sanctum", Hotkey = "F11" },
+        new() { Text = "/kingsmarch", Hotkey = "F6" },
+        new() { Text = "/monastery", Hotkey = "F7" },
+    ];
+}
+
+/// <summary>A text pasted into the game chat when its shortcut is pressed.</summary>
+public sealed class ChatCommand
+{
+    public string Text { get; set; } = string.Empty;
+    public string Hotkey { get; set; } = string.Empty;
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>Press Enter after pasting; otherwise the chat stays open with the text for editing.</summary>
+    public bool Send { get; set; } = true;
 }
 
 public sealed class GameSettings

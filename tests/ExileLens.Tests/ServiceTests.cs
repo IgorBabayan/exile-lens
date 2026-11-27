@@ -165,7 +165,7 @@ public sealed class ProfileServiceTests
         using (paths)
         {
             var p = service.Create(GameId.Poe1, "Melee");
-            service.SetLevels(p.Id, ["poe1.reflect-physical", "poe1.no-regen"], DangerLevel.Dangerous);
+            service.SetLevels(p.Id, ["poe1.no-regen", "poe1.max-res"], DangerLevel.Dangerous);
             var json = service.Export(p.Id);
             var imported = service.Import(json);
 
@@ -314,6 +314,12 @@ public sealed class PriceCheckServiceTests
 
         public Task<StatIndex?> GetStatIndexAsync(IGameModule game, CancellationToken cancellationToken) =>
             Task.FromResult<StatIndex?>(new StatIndex([new TradeStat("explicit.stat_life", "+# to maximum Life", "explicit")]));
+
+        public Task<IReadOnlyDictionary<string, string[]>> GetUniquesByBaseAsync(IGameModule game, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<string, string[]>>(new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Imperial Bow"] = ["Doomfletch", "Lioneye's Glare"],
+            });
     }
 
     private sealed class FakeMarket : IMarketDataProvider
@@ -384,6 +390,29 @@ public sealed class PriceCheckServiceTests
             trade.Gate.SetResult();
             var result = await survivor;
             Assert.IsTrue(result.Estimate.HasValue);
+        }
+    }
+
+    [TestMethod]
+    public async Task UnidentifiedUniqueOffersCandidatesAndPricesTheChosenOne()
+    {
+        var (service, _, paths) = await CreateAsync();
+        using (paths)
+        {
+            var item = Fixture.Parse("poe1/unidentified-unique-bow.txt", GameId.Poe1);
+            var session = service.CreateSession(item, Games.Poe1, "Test");
+            Assert.IsTrue(service.NeedsUniqueChoice(session));
+            Assert.IsNull(service.PeekUniqueCandidates(session), "not loaded for this game yet: peeking never blocks");
+
+            var candidates = await service.GetUniqueCandidatesAsync(session, CancellationToken.None);
+            CollectionAssert.AreEqual(new[] { "Doomfletch", "Lioneye's Glare" }, candidates.ToArray());
+            Assert.AreSame(candidates, service.PeekUniqueCandidates(session), "later checks reuse the loaded list");
+
+            var chosen = service.ChooseUnique(session, "Lioneye's Glare");
+            Assert.IsFalse(service.NeedsUniqueChoice(chosen));
+            Assert.AreEqual("Lioneye's Glare", chosen.Item.Name);
+            Assert.AreEqual("Test", chosen.League);
+            StringAssert.Contains(service.BuildTradeUrl(chosen), "url");
         }
     }
 

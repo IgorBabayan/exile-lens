@@ -20,9 +20,20 @@ public sealed class PriceCheckSession
     public required IReadOnlyList<SearchFilter> Filters { get; init; }
     public required string ValuationCurrency { get; init; }
     public bool UsesBulkPricing { get; init; }
+
+    /// <summary>
+    /// Overlay "All / Online" seller toggle for this check only. Every check starts on "All" (the listing type from
+    /// Settings as is); "Online" narrows it to sellers online right now.
+    /// </summary>
+    public bool OnlineSellersOnly { get; set; }
 }
 
-public sealed record RewardSummary(RewardEstimate? Disenchant, RewardEstimate? Salvage, RewardEstimate? Vendor, ValueComparison? Comparison);
+public sealed record RewardSummary(
+    RewardEstimate? Disenchant,
+    RewardEstimate? Salvage,
+    RewardEstimate? Vendor,
+    ValueComparison? Comparison,
+    DustEstimate? Dust = null);
 
 public sealed record PriceCheckResult(
     PriceEstimate Estimate,
@@ -31,7 +42,8 @@ public sealed record PriceCheckResult(
     RewardSummary Rewards,
     string? Error,
     bool FromCache,
-    TimeSpan NetworkTime);
+    TimeSpan NetworkTime,
+    string? IconUrl = null);
 
 public interface IPriceEstimationService
 {
@@ -43,7 +55,22 @@ public interface IPriceEstimationService
 
     Task<PriceCheckResult> RunAsync(PriceCheckSession session, CancellationToken cancellationToken);
 
+    /// <summary>Icon URL already known for this item (from earlier searches or cached exchange data). Never blocks.</summary>
+    string? PeekIconUrl(PriceCheckSession session);
+
     string BuildTradeUrl(PriceCheckSession session);
+
+    /// <summary>True for an unidentified unique: its copy names only the base, so the user is asked which unique it is.</summary>
+    bool NeedsUniqueChoice(PriceCheckSession session);
+
+    /// <summary>Unique names on the session's base when the unique list is already loaded; null when it is not yet. Never blocks.</summary>
+    IReadOnlyList<string>? PeekUniqueCandidates(PriceCheckSession session);
+
+    /// <summary>Unique names on the session's base; empty when unknown or the list is unavailable.</summary>
+    Task<IReadOnlyList<string>> GetUniqueCandidatesAsync(PriceCheckSession session, CancellationToken cancellationToken);
+
+    /// <summary>New session for the same item priced as the named unique (fresh default filters, same game and league).</summary>
+    PriceCheckSession ChooseUnique(PriceCheckSession session, string uniqueName);
 }
 
 public sealed class PriceCheckService : IPriceEstimationService
@@ -59,6 +86,9 @@ public sealed class PriceCheckService : IPriceEstimationService
     private readonly ILogger<PriceCheckService> _logger;
     private readonly ConcurrentDictionary<string, Lazy<Task<(PriceEstimate, IReadOnlyList<MarketListing>, string?)>>> _inflight = new();
     private readonly ConcurrentDictionary<GameId, StatIndex> _statIndexes = new();
+    private readonly ConcurrentDictionary<GameId, IReadOnlyDictionary<string, string[]>> _uniques = new();
+    private readonly ConcurrentDictionary<string, string> _icons = new(StringComparer.OrdinalIgnoreCase);
+    private const int MaxRememberedIcons = 4096;
 
     public PriceCheckService(
         ITradeClient trade,
@@ -90,6 +120,43 @@ public sealed class PriceCheckService : IPriceEstimationService
         {
             _statIndexes[game.Game] = index;
         }
+
+        // Off the UI thread (after the await): parse the unique dust table so the first unique check doesn't pay for it.
+        _ = game.UniqueDust;
+
+        // Unique names per base (disk cached): an unidentified unique can then offer its candidates instantly.
+        await LoadUniquesAsync(game, cancellationToken).ConfigureAwait(false);
+    }
+
+    public bool NeedsUniqueChoice(PriceCheckSession session) =>
+        !session.UsesBulkPricing && session.Item is { Rarity: ItemRarity.Unique, Name: null, BaseType.Length: > 0 };
+
+    public IReadOnlyList<string>? PeekUniqueCandidates(PriceCheckSession session) =>
+        _uniques.TryGetValue(session.Game.Game, out var map) ? Candidates(map, session.Item.BaseType) : null;
+
+    public async Task<IReadOnlyList<string>> GetUniqueCandidatesAsync(PriceCheckSession session, CancellationToken cancellationToken) =>
+        Candidates(await LoadUniquesAsync(session.Game, cancellationToken).ConfigureAwait(false), session.Item.BaseType);
+
+    public PriceCheckSession ChooseUnique(PriceCheckSession session, string uniqueName) =>
+        CreateSession(session.Item.WithName(uniqueName), session.Game, session.League);
+
+    private static string[] Candidates(IReadOnlyDictionary<string, string[]> map, string baseType) =>
+        map.TryGetValue(baseType, out var names) ? names : Array.Empty<string>();
+
+    private async Task<IReadOnlyDictionary<string, string[]>> LoadUniquesAsync(IGameModule game, CancellationToken cancellationToken)
+    {
+        if (_uniques.TryGetValue(game.Game, out var known))
+        {
+            return known;
+        }
+
+        var map = await _tradeData.GetUniquesByBaseAsync(game, cancellationToken).ConfigureAwait(false);
+        if (map.Count > 0)
+        {
+            _uniques[game.Game] = map; // an empty (failed) load is not remembered, so a later check retries
+        }
+
+        return map;
     }
 
     public PriceCheckSession CreateSession(ParsedItem item, IGameModule game, string league)
@@ -97,7 +164,7 @@ public sealed class PriceCheckService : IPriceEstimationService
         var s = _settings.Current;
         var valuation = string.IsNullOrWhiteSpace(s.Rewards.ValuationCurrency) ? game.DefaultValuationCurrency : s.Rewards.ValuationCurrency!;
         var bulk = game.BulkPricedCategories.Contains(item.Category);
-        var options = Options(game);
+        var options = Options(game, onlineSellersOnly: false);
         var filters = bulk ? [] : _queryBuilder.CreateDefaultFilters(item, _statIndexes.GetValueOrDefault(game.Game), options);
         return new PriceCheckSession
         {
@@ -116,8 +183,19 @@ public sealed class PriceCheckService : IPriceEstimationService
         return ComputeRewards(session, rates, market);
     }
 
+    public string? PeekIconUrl(PriceCheckSession session)
+    {
+        var item = session.Item;
+        if (_icons.TryGetValue(IconKey(session.Game.Game, item), out var url))
+        {
+            return url;
+        }
+
+        return session.UsesBulkPricing ? _market.GetCachedIconUrl(session.Game, session.League, item.BaseType) : null;
+    }
+
     public string BuildTradeUrl(PriceCheckSession session) =>
-        _trade.BuildSearchUrl(session.Game, session.League, _queryBuilder.Build(session.Item, session.Filters, Options(session.Game)));
+        _trade.BuildSearchUrl(session.Game, session.League, _queryBuilder.Build(session.Item, session.Filters, Options(session)));
 
     public async Task<PriceCheckResult> RunAsync(PriceCheckSession session, CancellationToken cancellationToken)
     {
@@ -142,7 +220,7 @@ public sealed class PriceCheckService : IPriceEstimationService
             }
             else
             {
-                var options = Options(session.Game);
+                var options = Options(session);
                 var query = _queryBuilder.Build(session.Item, session.Filters, options);
                 var key = $"{session.Game.Game}|{session.League}|{session.ValuationCurrency}|{query.ToJsonString()}";
                 if (_cache.TryGetValue(key, out (PriceEstimate, IReadOnlyList<MarketListing>, string?) cached))
@@ -160,7 +238,7 @@ public sealed class PriceCheckService : IPriceEstimationService
             }
 
             var rewards = ComputeRewards(session, rates, estimate);
-            return new PriceCheckResult(estimate, listings, tradeUrl, rewards, null, fromCache, _time.GetElapsedTime(started));
+            return new PriceCheckResult(estimate, listings, tradeUrl, rewards, null, fromCache, _time.GetElapsedTime(started), PeekIconUrl(session));
         }
         catch (TradeRateLimitedException ex)
         {
@@ -175,7 +253,37 @@ public sealed class PriceCheckService : IPriceEstimationService
 
     private PriceCheckResult Failed(PriceCheckSession session, CurrencyRates rates, DateTimeOffset now, string message, long started) =>
         new(PriceEstimate.Unavailable(session.ValuationCurrency, "Official trade", now), [], null,
-            ComputeRewards(session, rates, null), message, false, _time.GetElapsedTime(started));
+            ComputeRewards(session, rates, null), message, false, _time.GetElapsedTime(started), PeekIconUrl(session));
+
+    private static string IconKey(GameId game, ParsedItem item) =>
+        item.Rarity == ItemRarity.Unique && item.Name is { Length: > 0 } name
+            ? $"{game}|u|{name}"
+            : $"{game}|b|{item.BaseType}";
+
+    private void RememberIcon(GameId game, ParsedItem item, List<TradeListing> fetched)
+    {
+        var key = IconKey(game, item);
+        if (item.BaseType.Length == 0 || _icons.ContainsKey(key))
+        {
+            return;
+        }
+
+        // Only trust art from a listing of the same base: with the base filter off, other bases can be returned.
+        foreach (var l in fetched)
+        {
+            if (l.Icon is { Length: > 0 } icon && l.TypeLine is { } type
+                && type.Contains(item.BaseType, StringComparison.OrdinalIgnoreCase))
+            {
+                if (_icons.Count >= MaxRememberedIcons)
+                {
+                    _icons.Clear();
+                }
+
+                _icons[key] = icon;
+                return;
+            }
+        }
+    }
 
     private async Task<(PriceEstimate, IReadOnlyList<MarketListing>, string?)> SearchAsync(PriceCheckSession session, JsonObject query, CurrencyRates rates, string key)
     {
@@ -194,6 +302,7 @@ public sealed class PriceCheckService : IPriceEstimationService
                 fetched.AddRange(await _trade.FetchAsync(session.Game, search.QueryId, chunk, ct).ConfigureAwait(false));
             }
 
+            RememberIcon(session.Game.Game, session.Item, fetched);
             var listings = new List<MarketListing>(fetched.Count);
             foreach (var l in fetched)
             {
@@ -225,6 +334,7 @@ public sealed class PriceCheckService : IPriceEstimationService
         var game = session.Game;
         var item = session.Item;
         RewardEstimate? disenchant = null, salvage = null, vendor = null;
+        DustEstimate? dust = null;
 
         if (item.Category is ItemCategory.Equipment or ItemCategory.Jewel or ItemCategory.Flask or ItemCategory.Charm or ItemCategory.Gem)
         {
@@ -244,6 +354,12 @@ public sealed class PriceCheckService : IPriceEstimationService
             }
         }
 
+        // PoE 1 unique disenchanting (Thaumaturgic Dust). Dust has no market rate, so it never enters the value comparison.
+        if (s.DisenchantEnabled && item.Rarity == ItemRarity.Unique && game.UniqueDust is { } dustTable)
+        {
+            dust = new DustEstimator(dustTable).Estimate(item);
+        }
+
         ValueComparison? comparison = null;
         if (disenchant is not null || salvage is not null || vendor is not null)
         {
@@ -251,12 +367,19 @@ public sealed class PriceCheckService : IPriceEstimationService
             comparison = ValueRecommender.Recommend(market, minTrade, disenchant, salvage, vendor);
         }
 
-        return new RewardSummary(disenchant, salvage, vendor, comparison);
+        return new RewardSummary(disenchant, salvage, vendor, comparison, dust);
     }
 
-    private TradeQueryOptions Options(IGameModule game)
+    private TradeQueryOptions Options(PriceCheckSession session) => Options(session.Game, session.OnlineSellersOnly);
+
+    private TradeQueryOptions Options(IGameModule game, bool onlineSellersOnly)
     {
         var t = _settings.Current.Trade;
-        return new TradeQueryOptions(game.FilterLayout, t.ModifierMinPercent, t.EnableModifiersByDefault, t.OnlineOnly);
+        return new TradeQueryOptions(
+            game.FilterLayout,
+            t.ModifierMinPercent,
+            t.EnableModifiersByDefault,
+            onlineSellersOnly ? TradeListingStatuses.OnlineOnly(t.ListingStatus) : t.ListingStatus,
+            TradePriceCurrencies.Find(t.PriceCurrency).ApiId(game.Game));
     }
 }

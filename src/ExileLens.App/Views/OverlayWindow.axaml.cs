@@ -4,6 +4,8 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Transformation;
+using Avalonia.VisualTree;
+using ExileLens.App.Services;
 
 namespace ExileLens.App.Views;
 
@@ -22,10 +24,21 @@ public sealed partial class OverlayWindow : Window
 
     public event EventHandler? CloseRequested;
 
+    /// <summary>Raised when the user starts dragging the overlay to a new spot.</summary>
+    public event EventHandler? UserMoved;
+
     public object? OverlayContent
     {
         get => Host.Content;
-        set => Host.Content = value;
+        set
+        {
+            // Content that scrolls its own sections (price check listings) gets the height constraint passed
+            // through instead of a page-level scrollbar spanning the whole popup.
+            Scroller.VerticalScrollBarVisibility = value is IOverlayContent { ManagesOwnScrolling: true }
+                ? Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled
+                : Avalonia.Controls.Primitives.ScrollBarVisibility.Auto;
+            Host.Content = value;
+        }
     }
 
     public void ApplyAppearance(double scale, double opacity, bool animations, double maxHeight)
@@ -82,10 +95,35 @@ public sealed partial class OverlayWindow : Window
     {
         base.OnPointerPressed(e);
 
-        // Drag the overlay by its background (useful when pinned).
-        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed && e.Source is Border or ScrollViewer or LayoutTransformControl)
+        // Drag the overlay by its background or by any header marked "drag-handle" (except its buttons).
+        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed && IsDragSource(e.Source))
         {
+            UserMoved?.Invoke(this, EventArgs.Empty);
             BeginMoveDrag(e);
         }
+    }
+
+    private static bool IsDragSource(object? source)
+    {
+        if (source is Border or ScrollViewer or LayoutTransformControl)
+        {
+            return true;
+        }
+
+        // Short walk up to the nearest drag handle; any interactive control on the way cancels the drag.
+        for (var visual = source as Visual; visual is not null; visual = visual.GetVisualParent())
+        {
+            switch (visual)
+            {
+                case Button or TextBox or ComboBox or Slider:
+                    return false;
+                case StyledElement element when element.Classes.Contains("drag-handle"):
+                    return true;
+                case OverlayWindow:
+                    return false;
+            }
+        }
+
+        return false;
     }
 }

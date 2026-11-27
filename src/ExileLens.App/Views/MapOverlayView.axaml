@@ -4,8 +4,8 @@
              x:Class="ExileLens.App.Views.MapOverlayView"
              x:DataType="vm:MapOverlayViewModel">
   <StackPanel>
-    <!-- Header -->
-    <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,0,0,12">
+    <!-- Header (drag handle) -->
+    <Grid Classes="drag-handle" Background="Transparent" ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,0,0,12">
       <Path Grid.Column="0" Classes="icon" Data="{StaticResource IconMap}" Stroke="{DynamicResource AccentBrush}" />
       <TextBlock Grid.Column="1" Text="Map analysis" Margin="10,0,0,0" FontSize="14" VerticalAlignment="Center" />
       <ToggleButton Grid.Column="2" Classes="icon" IsChecked="{Binding IsPinned}" ToolTip.Tip="Pin overlay">

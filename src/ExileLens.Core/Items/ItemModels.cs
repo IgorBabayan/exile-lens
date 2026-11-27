@@ -110,6 +110,9 @@ public sealed class ParsedItem
     public bool IsMirrored { get; init; }
     public bool IsFractured { get; init; }
     public bool IsSynthesised { get; init; }
+
+    /// <summary>PoE 1 Foulborn (mutated) unique: the clipboard name carries a "Foulborn " prefix the trade API does not know.</summary>
+    public bool IsFoulborn { get; init; }
     public SocketInfo Sockets { get; init; } = SocketInfo.None;
     public IReadOnlyList<string> Influences { get; init; } = [];
     public IReadOnlyList<ItemModifier> Modifiers { get; init; } = [];
@@ -125,6 +128,48 @@ public sealed class ParsedItem
     public IReadOnlyList<string> UnparsedLines { get; init; } = [];
 
     public string DisplayName => Name ?? BaseType;
+
+    /// <summary>Unique name as the official trade API expects it (Foulborn prefix removed; the variant is a separate filter).</summary>
+    public string? TradeName => IsFoulborn && Name is { } n && n.Length > FoulbornPrefix.Length && n.StartsWith(FoulbornPrefix, StringComparison.Ordinal)
+        ? n[FoulbornPrefix.Length..]
+        : Name;
+
+    public const string FoulbornPrefix = "Foulborn ";
+
+    /// <summary>
+    /// Copy with another unique name, e.g. the unique the user picked for an unidentified item. Everything parsed from
+    /// the clipboard is kept; the parsed collections are immutable after parsing and are shared, not copied.
+    /// </summary>
+    public ParsedItem WithName(string? name) => new()
+    {
+        Game = Game,
+        RawText = RawText,
+        ItemClass = ItemClass,
+        Rarity = Rarity,
+        Category = Category,
+        Name = name,
+        BaseType = BaseType,
+        ItemLevel = ItemLevel,
+        Quality = Quality,
+        GemLevel = GemLevel,
+        MapTier = MapTier,
+        StackSize = StackSize,
+        MaxStackSize = MaxStackSize,
+        RequiredLevel = RequiredLevel,
+        IsCorrupted = IsCorrupted,
+        IsIdentified = IsIdentified,
+        IsMirrored = IsMirrored,
+        IsFractured = IsFractured,
+        IsSynthesised = IsSynthesised,
+        IsFoulborn = Rarity == ItemRarity.Unique && name is not null && name.StartsWith(FoulbornPrefix, StringComparison.Ordinal),
+        Sockets = Sockets,
+        Influences = Influences,
+        Modifiers = Modifiers,
+        Affixes = Affixes,
+        Properties = Properties,
+        HasAdvancedAffixInfo = HasAdvancedAffixInfo,
+        UnparsedLines = UnparsedLines,
+    };
 
     public IEnumerable<ItemModifier> ModifiersOf(ModifierKind kind)
     {

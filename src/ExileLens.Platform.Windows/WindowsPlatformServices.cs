@@ -207,6 +207,9 @@ public sealed unsafe class WindowsHotkeyService : IGlobalHotkeyService
 public sealed unsafe class WindowsKeyboardInputService : IKeyboardInputService
 {
     private const ushort VkC = 0x43;
+    private const ushort VkA = 0x41;
+    private const ushort VkV = 0x56;
+    private const ushort VkReturn = 0x0D;
 
     public bool IsSupported => true;
 
@@ -249,6 +252,46 @@ public sealed unsafe class WindowsKeyboardInputService : IKeyboardInputService
 
         return Task.CompletedTask;
     }
+
+    public void SendChatKeystroke(ChatKeystroke keystroke)
+    {
+        // Up to 5 modifier releases + Ctrl down, key down, key up, Ctrl up.
+        Span<Native.INPUT> inputs = stackalloc Native.INPUT[9];
+        var n = 0;
+        foreach (var vk in HeldModifiers)
+        {
+            if (Native.IsDown(vk))
+            {
+                inputs[n++] = Key(vk, true);
+            }
+        }
+
+        var (key, ctrl) = keystroke switch
+        {
+            ChatKeystroke.SelectAll => (VkA, true),
+            ChatKeystroke.Paste => (VkV, true),
+            _ => (VkReturn, false),
+        };
+
+        if (ctrl)
+        {
+            inputs[n++] = Key(Native.VK_CONTROL, false);
+        }
+
+        inputs[n++] = Key(key, false);
+        inputs[n++] = Key(key, true);
+        if (ctrl)
+        {
+            inputs[n++] = Key(Native.VK_CONTROL, true);
+        }
+
+        fixed (Native.INPUT* p = inputs)
+        {
+            Native.SendInput((uint)n, p, sizeof(Native.INPUT));
+        }
+    }
+
+    private static ReadOnlySpan<int> HeldModifiers => [Native.VK_CONTROL, Native.VK_MENU, Native.VK_SHIFT, Native.VK_LWIN, Native.VK_RWIN];
 
     private static Native.INPUT Key(int vk, bool up) => new()
     {

@@ -16,6 +16,6 @@ How to read this page: **verified** means compiled with warnings-as-errors and c
 
 - Run the app on Windows, X11, Wayland/XWayland (KDE, GNOME, Hyprland) and macOS, and record the results in
   `PLATFORM-SUPPORT.md`.
-- Extend `map-modifiers.json` with the full modifier list of the current league. Missing modifiers are already
-  recorded automatically as they are seen.
+- Extend the PoE 2 `map-modifiers.json` with the full waystone modifier list of the current league (PoE 1 is
+  synced from poe.re). Missing modifiers are already recorded automatically as they are seen.
 - Translations: only English UI strings exist today. The Language setting is in place for later locales.

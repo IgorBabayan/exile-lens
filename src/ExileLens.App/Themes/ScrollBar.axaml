@@ -1,0 +1,109 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!--
+    Minimal scrollbar that replaces Fluent's: no track, no arrow buttons, no expand-on-hover.
+    A rounded thumb sits in a 12px gutter; it is 6px at rest and grows to 8px with a brighter fill on hover/drag.
+    Width changes use a render transform only, so hovering never triggers a layout pass.
+  -->
+  <ControlTheme x:Key="ExileScrollBarThumb" TargetType="Thumb">
+    <Setter Property="Background" Value="{DynamicResource ScrollThumbBrush}" />
+    <Setter Property="CornerRadius" Value="4" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}" />
+      </ControlTemplate>
+    </Setter>
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="0:0:0.12" />
+        <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.12" />
+      </Transitions>
+    </Setter>
+  </ControlTheme>
+
+  <ControlTheme x:Key="ExileScrollBarPageButton" TargetType="RepeatButton">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="VerticalAlignment" Value="Stretch" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}" />
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type ScrollBar}" TargetType="ScrollBar">
+    <Setter Property="AllowAutoHide" Value="True" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Cursor" Value="Arrow" />
+
+    <Style Selector="^:vertical">
+      <Setter Property="Width" Value="12" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border Background="{TemplateBinding Background}">
+            <Track Minimum="{TemplateBinding Minimum}"
+                   Maximum="{TemplateBinding Maximum}"
+                   Value="{TemplateBinding Value, Mode=TwoWay}"
+                   ViewportSize="{TemplateBinding ViewportSize}"
+                   DeferThumbDrag="{TemplateBinding ScrollViewer.IsDeferredScrollingEnabled}"
+                   Orientation="Vertical"
+                   IsDirectionReversed="True">
+              <Track.DecreaseButton>
+                <RepeatButton Name="PART_PageUpButton" Theme="{StaticResource ExileScrollBarPageButton}" />
+              </Track.DecreaseButton>
+              <Track.IncreaseButton>
+                <RepeatButton Name="PART_PageDownButton" Theme="{StaticResource ExileScrollBarPageButton}" />
+              </Track.IncreaseButton>
+              <Thumb Theme="{StaticResource ExileScrollBarThumb}"
+                     Width="8" MinHeight="28" Margin="0,2"
+                     HorizontalAlignment="Center"
+                     RenderTransformOrigin="50%,50%"
+                     RenderTransform="scaleX(0.75)" />
+            </Track>
+          </Border>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+
+    <Style Selector="^:horizontal">
+      <Setter Property="Height" Value="12" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border Background="{TemplateBinding Background}">
+            <Track Minimum="{TemplateBinding Minimum}"
+                   Maximum="{TemplateBinding Maximum}"
+                   Value="{TemplateBinding Value, Mode=TwoWay}"
+                   ViewportSize="{TemplateBinding ViewportSize}"
+                   DeferThumbDrag="{TemplateBinding ScrollViewer.IsDeferredScrollingEnabled}"
+                   Orientation="Horizontal">
+              <Track.DecreaseButton>
+                <RepeatButton Name="PART_PageUpButton" Theme="{StaticResource ExileScrollBarPageButton}" />
+              </Track.DecreaseButton>
+              <Track.IncreaseButton>
+                <RepeatButton Name="PART_PageDownButton" Theme="{StaticResource ExileScrollBarPageButton}" />
+              </Track.IncreaseButton>
+              <Thumb Theme="{StaticResource ExileScrollBarThumb}"
+                     Height="8" MinWidth="28" Margin="2,0"
+                     VerticalAlignment="Center"
+                     RenderTransformOrigin="50%,50%"
+                     RenderTransform="scaleY(0.75)" />
+            </Track>
+          </Border>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+
+    <!-- Hovering anywhere over the gutter (or dragging) widens the thumb to its full 8px and brightens it. -->
+    <Style Selector="^:pointerover /template/ Thumb">
+      <Setter Property="RenderTransform" Value="none" />
+      <Setter Property="Background" Value="{DynamicResource ScrollThumbHoverBrush}" />
+    </Style>
+    <Style Selector="^ /template/ Thumb:pressed">
+      <Setter Property="RenderTransform" Value="none" />
+      <Setter Property="Background" Value="{DynamicResource ScrollThumbActiveBrush}" />
+    </Style>
+  </ControlTheme>
+</ResourceDictionary>

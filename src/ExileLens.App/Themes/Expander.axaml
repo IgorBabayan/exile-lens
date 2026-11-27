@@ -1,0 +1,91 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!--
+    Flat expander that replaces Fluent's: no background, no border, so it blends into whatever surface it sits on
+    (the overlay card). The chevron sits before the title and rotates when expanded; rotation is a render
+    transform only, so toggling never costs more than the content's own layout.
+  -->
+  <ControlTheme x:Key="ExileExpanderHeader" TargetType="ToggleButton">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0,6" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <ContentPresenter Name="PART_ContentPresenter"
+                          Background="{TemplateBinding Background}"
+                          Padding="{TemplateBinding Padding}"
+                          Content="{TemplateBinding Content}"
+                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                          HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type Expander}" TargetType="Expander">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Stretch" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <DockPanel Background="{TemplateBinding Background}">
+          <ToggleButton Name="PART_Header"
+                        DockPanel.Dock="Top"
+                        Theme="{StaticResource ExileExpanderHeader}"
+                        IsChecked="{TemplateBinding IsExpanded, Mode=TwoWay}"
+                        IsEnabled="{TemplateBinding IsEnabled}">
+            <Grid ColumnDefinitions="Auto,*">
+              <Path Name="PART_Chevron"
+                    Data="{DynamicResource IconChevron}"
+                    Width="12" Height="12"
+                    Stretch="Uniform"
+                    Stroke="{DynamicResource TextSecondaryBrush}"
+                    StrokeThickness="1.8"
+                    StrokeLineCap="Round"
+                    StrokeJoin="Round"
+                    VerticalAlignment="Center"
+                    RenderTransformOrigin="50%,50%">
+                <Path.Transitions>
+                  <Transitions>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.12" />
+                  </Transitions>
+                </Path.Transitions>
+              </Path>
+              <ContentPresenter Grid.Column="1"
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center"
+                                FontSize="{DynamicResource FontSizeSubtitle}"
+                                FontWeight="Medium"
+                                Content="{TemplateBinding Header}"
+                                ContentTemplate="{TemplateBinding HeaderTemplate}" />
+            </Grid>
+          </ToggleButton>
+          <ContentPresenter Name="PART_ContentPresenter"
+                            IsVisible="{TemplateBinding IsExpanded}"
+                            Padding="{TemplateBinding Padding}"
+                            Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+        </DockPanel>
+      </ControlTemplate>
+    </Setter>
+
+    <Style Selector="^:expanded /template/ Path#PART_Chevron">
+      <Setter Property="RenderTransform" Value="rotate(90deg)" />
+    </Style>
+    <Style Selector="^ /template/ ToggleButton#PART_Header:pointerover Path#PART_Chevron">
+      <Setter Property="Stroke" Value="{DynamicResource TextPrimaryBrush}" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Opacity" Value="0.5" />
+    </Style>
+  </ControlTheme>
+</ResourceDictionary>

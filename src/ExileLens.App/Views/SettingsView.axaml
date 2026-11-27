@@ -110,10 +110,41 @@
         </StackPanel>
       </Border>
 
-      <!-- Shortcuts & league -->
+      <!-- Leagues -->
       <Border Classes="panel">
         <StackPanel Spacing="8">
-          <TextBlock Text="Keyboard shortcuts &amp; league" Classes="subtitle" />
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="Leagues" Classes="subtitle" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Content="Refresh league list" Command="{Binding RefreshLeaguesCommand}" />
+          </Grid>
+          <TextBlock Classes="caption" TextWrapping="Wrap"
+                     Text="Choose the league used for price checks, currency rates and trade links in each game. Automatic follows the current trade league." />
+          <ItemsControl ItemsSource="{Binding LeagueSelectors}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:LeagueSelectorViewModel">
+                <StackPanel Spacing="2" Margin="0,0,0,6">
+                  <StackPanel Classes="row">
+                    <TextBlock Classes="label" Text="{Binding GameName}" />
+                    <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding Selected}" Width="280">
+                      <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:LeagueOption"><TextBlock Text="{Binding Label}" /></DataTemplate>
+                      </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <TextBox Text="{Binding CustomLeague, UpdateSourceTrigger=LostFocus}" Width="220" PlaceholderText="League ID"
+                             IsVisible="{Binding IsCustomSelected}" />
+                  </StackPanel>
+                  <TextBlock Text="{Binding Status}" Classes="caption" TextWrapping="Wrap" Margin="240,0,0,0" />
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+
+      <!-- Shortcuts -->
+      <Border Classes="panel">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Keyboard shortcuts" Classes="subtitle" />
           <TextBlock Classes="caption" TextWrapping="Wrap"
                      Text="Click a field and press the key combination. Shortcuts only act while the game window is focused; elsewhere the keys reach other apps normally." />
           <StackPanel Classes="row">
@@ -139,10 +170,48 @@
           </StackPanel>
           <TextBlock Text="{Binding ShortcutError}" Foreground="{DynamicResource WarningBrush}" TextWrapping="Wrap"
                      IsVisible="{Binding ShortcutError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-          <StackPanel Classes="row">
-            <TextBlock Classes="label" Text="Active league" />
-            <AutoCompleteBox ItemsSource="{Binding LeagueOptions}" Text="{Binding League}" Width="260" FilterMode="Contains" />
+        </StackPanel>
+      </Border>
+
+      <!-- Chat -->
+      <Border Classes="panel">
+        <StackPanel Spacing="8">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="Chat" Classes="subtitle" VerticalAlignment="Center" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+              <Button Content="Add command" Command="{Binding AddChatCommandCommand}" />
+              <Button Content="Restore defaults" Command="{Binding ResetChatCommandsCommand}" />
+            </StackPanel>
+          </Grid>
+          <TextBlock Classes="caption" TextWrapping="Wrap"
+                     Text="Press a shortcut in the game to paste the command into the chat. With Send on, Enter is pressed for you; otherwise the chat stays open so you can finish typing. Shortcuts only act while the game window is focused." />
+          <ToggleSwitch IsChecked="{Binding ChatEnabled}" OnContent="Chat commands" OffContent="Chat commands" />
+          <StackPanel Orientation="Horizontal" Spacing="10" IsEnabled="{Binding ChatEnabled}">
+            <TextBlock Width="32" />
+            <TextBlock Width="260" Text="Chat command" Classes="caption" />
+            <TextBlock Width="170" Text="Shortcut" Classes="caption" />
+            <TextBlock Text="Send" Classes="caption" />
           </StackPanel>
+          <ItemsControl ItemsSource="{Binding ChatCommands}" IsEnabled="{Binding ChatEnabled}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:ChatCommandViewModel">
+                <StackPanel Spacing="2" Margin="0,0,0,4">
+                  <StackPanel Classes="row">
+                    <CheckBox IsChecked="{Binding Enabled}" Width="32" MinWidth="0" ToolTip.Tip="Enabled" />
+                    <TextBox Text="{Binding Text, UpdateSourceTrigger=LostFocus}" Width="260" PlaceholderText="/hideout" />
+                    <TextBox Classes="shortcut" Text="{Binding Hotkey}" Width="170" IsReadOnly="True" PlaceholderText="Press a key" />
+                    <CheckBox IsChecked="{Binding Send}" ToolTip.Tip="Press Enter after pasting" />
+                    <Button Classes="icon" ToolTip.Tip="Remove" VerticalAlignment="Center"
+                            Command="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).RemoveChatCommandCommand}" CommandParameter="{Binding}">
+                      <Path Classes="icon" Width="13" Height="13" Data="{StaticResource IconClose}" />
+                    </Button>
+                  </StackPanel>
+                  <TextBlock Text="{Binding Error}" Foreground="{DynamicResource WarningBrush}" TextWrapping="Wrap" Margin="42,0,0,0"
+                             IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
         </StackPanel>
       </Border>
 
@@ -155,9 +224,31 @@
             <TextBlock Text="{Binding MarketProvider}" Classes="secondary" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="560" />
           </StackPanel>
           <StackPanel Classes="row">
-            <TextBlock Classes="label" Text="Preferred currency" />
-            <TextBox Text="{Binding PreferredCurrency}" Width="220" PlaceholderText="Game default" />
+            <TextBlock Classes="label" Text="Listing type" />
+            <ComboBox ItemsSource="{Binding ListingStatuses}" SelectedItem="{Binding ListingStatus}" Width="260">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:ListingStatusOption"><TextBlock Text="{Binding Label}" /></DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
           </StackPanel>
+          <StackPanel Classes="row">
+            <TextBlock Classes="label" Text="Preferred currency" />
+            <ComboBox ItemsSource="{Binding PriceCurrencies}" SelectedItem="{Binding PreferredCurrency}" Width="260" MaxDropDownHeight="360">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:PriceCurrencyOption">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <StackPanel Orientation="Horizontal" Width="40" VerticalAlignment="Center">
+                      <Image Source="{Binding Icon}" Width="20" Height="20" RenderOptions.BitmapInterpolationMode="HighQuality" />
+                      <Image Source="{Binding SecondIcon}" Width="20" Height="20" RenderOptions.BitmapInterpolationMode="HighQuality" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+                  </StackPanel>
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </StackPanel>
+          <TextBlock Classes="caption" TextWrapping="Wrap"
+                     Text="Currencies without a trade filter in Path of Exile 2 search any currency there." />
           <StackPanel Classes="row">
             <TextBlock Classes="label" Text="Listings to fetch" />
             <NumericUpDown Value="{Binding MaxListings}" Minimum="5" Maximum="100" Increment="5" Width="130" FormatString="0" />
@@ -177,7 +268,7 @@
           </StackPanel>
           <ToggleSwitch IsChecked="{Binding AutoSearch}" OnContent="Search automatically when the overlay opens" OffContent="Search automatically when the overlay opens" />
           <ToggleSwitch IsChecked="{Binding EnableModifiersByDefault}" OnContent="Enable modifier filters by default" OffContent="Enable modifier filters by default" />
-          <ToggleSwitch IsChecked="{Binding OnlineOnly}" OnContent="Only online sellers" OffContent="Only online sellers" />
+          <ToggleSwitch IsChecked="{Binding ShowCurrencyIcons}" OnContent="Show currency icons instead of names in prices" OffContent="Show currency icons instead of names in prices" />
           <StackPanel Classes="row">
             <TextBlock Classes="label" Text="poe.ninja proxy (optional)" />
             <TextBox Text="{Binding NinjaBaseUrl}" Width="320" PlaceholderText="https://poe.ninja" />

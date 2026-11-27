@@ -326,6 +326,7 @@ public sealed class ItemTextParser : IItemParser
             IsMirrored = mirrored,
             IsFractured = fractured,
             IsSynthesised = synthesised,
+            IsFoulborn = rarity == ItemRarity.Unique && name is not null && name.StartsWith(ParsedItem.FoulbornPrefix, StringComparison.Ordinal),
             Sockets = sockets,
             Influences = influences,
             Modifiers = modifiers,

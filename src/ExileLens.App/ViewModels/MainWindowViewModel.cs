@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 
 namespace ExileLens.App.ViewModels;
 
@@ -59,12 +58,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [ObservableProperty]
     private NavItem _selected;
 
-    [ObservableProperty]
-    private bool _isSidebarCollapsed;
-
     public PageViewModel CurrentPage => Selected.Page;
-
-    public double SidebarWidth => IsSidebarCollapsed ? 60 : 220;
 
     partial void OnSelectedChanging(NavItem value) => Selected?.Page.OnDeactivated();
 
@@ -73,11 +67,6 @@ public sealed partial class MainWindowViewModel : ObservableObject
         value.Page.OnActivated();
         OnPropertyChanged(nameof(CurrentPage));
     }
-
-    partial void OnIsSidebarCollapsedChanged(bool value) => OnPropertyChanged(nameof(SidebarWidth));
-
-    [RelayCommand]
-    private void ToggleSidebar() => IsSidebarCollapsed = !IsSidebarCollapsed;
 
     public void OnServicesReady()
     {

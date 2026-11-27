@@ -43,7 +43,8 @@ public sealed record TradeFilterLayout(
     string SocketKey,
     string? LinksKey,
     string MapGroup,
-    string MapTierKey);
+    string MapTierKey,
+    string? FoulbornGroup = null);
 
 public interface ITradeQueryBuilder
 {
@@ -55,7 +56,8 @@ public sealed record TradeQueryOptions(
     TradeFilterLayout Layout,
     double ModifierMinPercent = 90,
     bool EnableModifiersByDefault = true,
-    bool OnlineOnly = true);
+    TradeListingStatus Status = TradeListingStatus.InstantBuyout,
+    string? PriceOption = null);
 
 public sealed class TradeQueryBuilder : ITradeQueryBuilder
 {
@@ -75,21 +77,38 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
 
         if (stats is not null && item.IsIdentified && item.Category is ItemCategory.Equipment or ItemCategory.Jewel or ItemCategory.Flask or ItemCategory.Charm or ItemCategory.Tablet or ItemCategory.Relic)
         {
-            for (var i = 0; i < item.Modifiers.Count; i++)
+            var mods = item.Modifiers;
+            for (var i = 0; i < mods.Count;)
             {
-                var mod = item.Modifiers[i];
-                if (!stats.TryResolve(mod, preferLocal, out var stat))
+                var mod = mods[i];
+                if (!stats.TryResolve(mods, i, preferLocal, out var stat, out var lineCount))
                 {
+                    i++;
                     continue;
                 }
 
-                double? rolled = mod.PrimaryValue is { } v ? (stat.Negated ? -v : v) : null;
-                double? min = rolled is { } r ? RoundMin(r, options.ModifierMinPercent) : null;
+                // A multi-line modifier is one filter: joined label, value taken from whichever line carries it.
+                var label = mod.Text;
+                var primary = mod.PrimaryValue;
+                if (lineCount > 1)
+                {
+                    label = JoinLines(mods, i, lineCount);
+                    for (var j = i; primary is null && j < i + lineCount; j++)
+                    {
+                        primary = mods[j].PrimaryValue;
+                    }
+                }
+
+                double? rolled = primary is { } v ? (stat.Negated ? -v : v) : null;
+
+                // Unique rolls have narrow ranges and the price sits in the top of them: a percentage of the roll
+                // (e.g. 202 for a perfect 225) matches far cheaper copies, so uniques search from the rolled value.
+                double? min = rolled is { } r ? (isUnique ? r : RoundMin(r, options.ModifierMinPercent)) : null;
                 filters.Add(new SearchFilter
                 {
                     Key = $"stat:{i}",
                     Kind = FilterKind.Stat,
-                    Label = mod.Text,
+                    Label = label,
                     StatId = stat.Id,
                     Negated = stat.Negated,
                     RolledValue = rolled,
@@ -97,6 +116,7 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
                     ModifierKind = mod.Kind,
                     Enabled = !isUnique && options.EnableModifiersByDefault && mod.Kind != ModifierKind.Enchant,
                 });
+                i += lineCount;
             }
         }
 
@@ -147,15 +167,16 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
         var layout = options.Layout;
         var query = new JsonObject
         {
-            ["status"] = new JsonObject { ["option"] = options.OnlineOnly ? "online" : "any" },
+            ["status"] = new JsonObject { ["option"] = TradeListingStatuses.ApiId(options.Status) },
         };
 
-        if (item.Rarity == ItemRarity.Unique && item.IsIdentified && item.Name is not null)
+        // An unidentified unique has no name in its copy; it carries one only once the user picked which unique it is.
+        if (item.Rarity == ItemRarity.Unique && item.TradeName is { } tradeName)
         {
-            query["name"] = item.Name;
+            query["name"] = tradeName;
             query["type"] = item.BaseType;
         }
-        else if (item.Rarity is ItemRarity.Normal or ItemRarity.Rare || item.Category is not ItemCategory.Equipment)
+        else if (item.Rarity is ItemRarity.Normal or ItemRarity.Rare or ItemRarity.Unique || item.Category is not ItemCategory.Equipment)
         {
             query["type"] = item.BaseType;
         }
@@ -175,6 +196,17 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
         if (item.Category is ItemCategory.Equipment or ItemCategory.Jewel or ItemCategory.Flask or ItemCategory.Charm)
         {
             Group("type_filters")["rarity"] = new JsonObject { ["option"] = item.Rarity == ItemRarity.Unique ? "unique" : "nonunique" };
+        }
+
+        // Foulborn and regular copies of a unique share a name but not a price: always pin the variant.
+        if (layout.FoulbornGroup is { } foulbornGroup && item.Rarity == ItemRarity.Unique && item.Name is not null)
+        {
+            Group(foulbornGroup)["foulborn_item"] = new JsonObject { ["option"] = item.IsFoulborn ? "true" : "false" };
+        }
+
+        if (options.PriceOption is { } priceOption)
+        {
+            Group("trade_filters")["price"] = new JsonObject { ["option"] = priceOption };
         }
 
         var statFilters = new JsonArray();
@@ -239,6 +271,17 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
             ["query"] = query,
             ["sort"] = new JsonObject { ["price"] = "asc" },
         };
+    }
+
+    private static string JoinLines(IReadOnlyList<ItemModifier> mods, int start, int count)
+    {
+        var parts = new string[count];
+        for (var j = 0; j < count; j++)
+        {
+            parts[j] = mods[start + j].Text;
+        }
+
+        return string.Join('\n', parts);
     }
 
     private static JsonObject? Range(double? min, double? max)

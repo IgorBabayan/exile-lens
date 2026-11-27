@@ -1,0 +1,20 @@
+Item Class: Bows
+Rarity: Unique
+Imperial Bow
+--------
+Bow
+Physical Damage: 29-117
+Critical Strike Chance: 5.00%
+Attacks per Second: 1.45
+--------
+Requirements:
+Level: 66
+Dex: 212
+--------
+Sockets: G-G-G 
+--------
+Item Level: 84
+--------
+23% increased Elemental Damage with Attack Skills (implicit)
+--------
+Unidentified
