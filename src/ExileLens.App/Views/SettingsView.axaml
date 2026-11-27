@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:ExileLens.App.ViewModels"
              xmlns:conv="using:ExileLens.App.Views"
+             xmlns:trade="using:ExileLens.Core.Trade"
              x:Class="ExileLens.App.Views.SettingsView"
              x:DataType="vm:SettingsViewModel">
   <UserControl.Styles>
@@ -224,9 +225,23 @@
             <TextBlock Text="{Binding MarketProvider}" Classes="secondary" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="560" />
           </StackPanel>
           <StackPanel Classes="row">
-            <TextBlock Classes="label" Text="Preferred currency" />
-            <TextBox Text="{Binding PreferredCurrency}" Width="220" PlaceholderText="Game default" />
+            <TextBlock Classes="label" Text="Listing type" />
+            <ComboBox ItemsSource="{Binding ListingStatuses}" SelectedItem="{Binding ListingStatus}" Width="260">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:ListingStatusOption"><TextBlock Text="{Binding Label}" /></DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
           </StackPanel>
+          <StackPanel Classes="row">
+            <TextBlock Classes="label" Text="Preferred currency" />
+            <ComboBox ItemsSource="{Binding PriceCurrencies}" SelectedItem="{Binding PreferredCurrency}" Width="260" MaxDropDownHeight="360">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="trade:TradePriceCurrency"><TextBlock Text="{Binding Label}" /></DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </StackPanel>
+          <TextBlock Classes="caption" TextWrapping="Wrap"
+                     Text="Currencies without a trade filter in Path of Exile 2 search any currency there." />
           <StackPanel Classes="row">
             <TextBlock Classes="label" Text="Listings to fetch" />
             <NumericUpDown Value="{Binding MaxListings}" Minimum="5" Maximum="100" Increment="5" Width="130" FormatString="0" />
@@ -246,7 +261,6 @@
           </StackPanel>
           <ToggleSwitch IsChecked="{Binding AutoSearch}" OnContent="Search automatically when the overlay opens" OffContent="Search automatically when the overlay opens" />
           <ToggleSwitch IsChecked="{Binding EnableModifiersByDefault}" OnContent="Enable modifier filters by default" OffContent="Enable modifier filters by default" />
-          <ToggleSwitch IsChecked="{Binding OnlineOnly}" OnContent="Only online sellers" OffContent="Only online sellers" />
           <StackPanel Classes="row">
             <TextBlock Classes="label" Text="poe.ninja proxy (optional)" />
             <TextBox Text="{Binding NinjaBaseUrl}" Width="320" PlaceholderText="https://poe.ninja" />

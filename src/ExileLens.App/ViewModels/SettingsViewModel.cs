@@ -11,6 +11,7 @@ using ExileLens.Application.Platform;
 using ExileLens.Application.Settings;
 using ExileLens.Application.Updates;
 using ExileLens.Core.Items;
+using ExileLens.Core.Trade;
 
 namespace ExileLens.App.ViewModels;
 
@@ -19,6 +20,8 @@ public sealed record GameSelectionOption(GameSelection Value, string Label);
 public sealed record ThemeOption(ThemeMode Value, string Label);
 
 public sealed record PlacementOption(OverlayPlacement Value, string Label);
+
+public sealed record ListingStatusOption(TradeListingStatus Value, string Label);
 
 public sealed partial class SettingsViewModel : PageViewModel
 {
@@ -280,10 +283,33 @@ public sealed partial class SettingsViewModel : PageViewModel
     }
 
     // ---------- Trade ----------
-    public string PreferredCurrency
+    public IReadOnlyList<ListingStatusOption> ListingStatuses { get; } =
+        Enum.GetValues<TradeListingStatus>().Select(v => new ListingStatusOption(v, TradeListingStatuses.Label(v))).ToArray();
+
+    public ListingStatusOption ListingStatus
     {
-        get => _settings.Current.Rewards.ValuationCurrency ?? string.Empty;
-        set => Set(s => s.Rewards.ValuationCurrency = string.IsNullOrWhiteSpace(value) ? null : value.Trim());
+        get => ListingStatuses.FirstOrDefault(o => o.Value == _settings.Current.Trade.ListingStatus) ?? ListingStatuses[(int)TradeListingStatus.InstantBuyout];
+        set
+        {
+            if (value is not null)
+            {
+                Set(s => s.Trade.ListingStatus = value.Value);
+            }
+        }
+    }
+
+    public IReadOnlyList<TradePriceCurrency> PriceCurrencies => TradePriceCurrencies.All;
+
+    public TradePriceCurrency PreferredCurrency
+    {
+        get => TradePriceCurrencies.Find(_settings.Current.Trade.PriceCurrency);
+        set
+        {
+            if (value is not null)
+            {
+                Set(s => s.Trade.PriceCurrency = value.Key);
+            }
+        }
     }
 
     public decimal? MaxListings { get => _settings.Current.Trade.MaxListings; set => Set(s => s.Trade.MaxListings = (int)Math.Clamp(value ?? 20, 5, 100)); }
@@ -307,8 +333,6 @@ public sealed partial class SettingsViewModel : PageViewModel
     public double ModifierMinPercent { get => _settings.Current.Trade.ModifierMinPercent; set => Set(s => s.Trade.ModifierMinPercent = Math.Round(Math.Clamp(value, 50, 100))); }
 
     public bool EnableModifiersByDefault { get => _settings.Current.Trade.EnableModifiersByDefault; set => Set(s => s.Trade.EnableModifiersByDefault = value); }
-
-    public bool OnlineOnly { get => _settings.Current.Trade.OnlineOnly; set => Set(s => s.Trade.OnlineOnly = value); }
 
     public string NinjaBaseUrl
     {

@@ -200,6 +200,40 @@ public sealed class TradeQueryTests
     }
 
     [TestMethod]
+    public void QueryDefaultsToInstantBuyoutWithoutPriceFilter()
+    {
+        var item = Fixture.Parse("poe1/unique-amulet.txt", GameId.Poe1);
+        var builder = new TradeQueryBuilder();
+        var options = new TradeQueryOptions(Games.Poe1.FilterLayout);
+        var query = builder.Build(item, builder.CreateDefaultFilters(item, null, options), options)["query"]!;
+        Assert.AreEqual("securable", query["status"]!["option"]!.GetValue<string>());
+        Assert.IsNull(query["filters"]!["trade_filters"]);
+    }
+
+    [TestMethod]
+    public void QueryAppliesListingStatusAndPriceCurrency()
+    {
+        var item = Fixture.Parse("poe1/unique-amulet.txt", GameId.Poe1);
+        var builder = new TradeQueryBuilder();
+        var options = new TradeQueryOptions(Games.Poe1.FilterLayout, Status: TradeListingStatus.InPersonOnline,
+            PriceOption: TradePriceCurrencies.Find("divine").ApiId(GameId.Poe1));
+        var query = builder.Build(item, builder.CreateDefaultFilters(item, null, options), options)["query"]!;
+        Assert.AreEqual("online", query["status"]!["option"]!.GetValue<string>());
+        Assert.AreEqual("divine", query["filters"]!["trade_filters"]!["filters"]!["price"]!["option"]!.GetValue<string>());
+    }
+
+    [TestMethod]
+    public void PriceCurrencyCatalogFallsBackToAny()
+    {
+        Assert.AreSame(TradePriceCurrencies.Any, TradePriceCurrencies.Find(null));
+        Assert.AreSame(TradePriceCurrencies.Any, TradePriceCurrencies.Find("unknown"));
+        Assert.IsNull(TradePriceCurrencies.Find("chromatic").ApiId(GameId.Poe1));
+        Assert.AreEqual("chrome", TradePriceCurrencies.Find("chrome").ApiId(GameId.Poe1));
+        Assert.IsNull(TradePriceCurrencies.Find("chrome").ApiId(GameId.Poe2), "PoE 2 has no Chromatic Orb option");
+        Assert.AreEqual(19, TradePriceCurrencies.All.Count);
+    }
+
+    [TestMethod]
     public void WaystoneQueryFiltersTier()
     {
         var item = Fixture.Parse("poe2/waystone-t15.txt", GameId.Poe2);

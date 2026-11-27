@@ -1,4 +1,5 @@
 using ExileLens.Core.Items;
+using ExileLens.Core.Trade;
 
 namespace ExileLens.Application.Settings;
 
@@ -80,7 +81,10 @@ public sealed class TradeSettings
     public decimal MinimumTradeValue { get; set; } = 1m;
     public double ModifierMinPercent { get; set; } = 90;
     public bool EnableModifiersByDefault { get; set; } = true;
-    public bool OnlineOnly { get; set; } = true;
+    public TradeListingStatus ListingStatus { get; set; } = TradeListingStatus.InstantBuyout;
+
+    /// <summary>Buyout currency of the trade search (<see cref="TradePriceCurrency.Key"/>); "any" leaves it unrestricted.</summary>
+    public string PriceCurrency { get; set; } = TradePriceCurrencies.AnyKey;
     public string MarketDataProvider { get; set; } = "poe.ninja";
 
     /// <summary>Optional base URL of a self-hosted caching proxy for poe.ninja (recommended by poe.ninja for desktop clients).</summary>

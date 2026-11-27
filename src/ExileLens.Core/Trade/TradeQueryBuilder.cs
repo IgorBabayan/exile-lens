@@ -56,7 +56,8 @@ public sealed record TradeQueryOptions(
     TradeFilterLayout Layout,
     double ModifierMinPercent = 90,
     bool EnableModifiersByDefault = true,
-    bool OnlineOnly = true);
+    TradeListingStatus Status = TradeListingStatus.InstantBuyout,
+    string? PriceOption = null);
 
 public sealed class TradeQueryBuilder : ITradeQueryBuilder
 {
@@ -148,7 +149,7 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
         var layout = options.Layout;
         var query = new JsonObject
         {
-            ["status"] = new JsonObject { ["option"] = options.OnlineOnly ? "online" : "any" },
+            ["status"] = new JsonObject { ["option"] = TradeListingStatuses.ApiId(options.Status) },
         };
 
         if (item.Rarity == ItemRarity.Unique && item.IsIdentified && item.TradeName is { } tradeName)
@@ -182,6 +183,11 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
         if (layout.FoulbornGroup is { } foulbornGroup && item.Rarity == ItemRarity.Unique && item.IsIdentified && item.Name is not null)
         {
             Group(foulbornGroup)["foulborn_item"] = new JsonObject { ["option"] = item.IsFoulborn ? "true" : "false" };
+        }
+
+        if (options.PriceOption is { } priceOption)
+        {
+            Group("trade_filters")["price"] = new JsonObject { ["option"] = priceOption };
         }
 
         var statFilters = new JsonArray();

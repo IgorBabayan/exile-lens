@@ -305,6 +305,11 @@ public sealed class PriceCheckService : IPriceEstimationService
     private TradeQueryOptions Options(IGameModule game)
     {
         var t = _settings.Current.Trade;
-        return new TradeQueryOptions(game.FilterLayout, t.ModifierMinPercent, t.EnableModifiersByDefault, t.OnlineOnly);
+        return new TradeQueryOptions(
+            game.FilterLayout,
+            t.ModifierMinPercent,
+            t.EnableModifiersByDefault,
+            t.ListingStatus,
+            TradePriceCurrencies.Find(t.PriceCurrency).ApiId(game.Game));
     }
 }
