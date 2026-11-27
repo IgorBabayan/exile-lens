@@ -186,6 +186,72 @@ public sealed class TradeQueryTests
         Assert.AreEqual("false", query["filters"]!["misc_filters"]!["filters"]!["foulborn_item"]!["option"]!.GetValue<string>());
     }
 
+    private const string GreenDreamManaStat = "explicit.stat_1535088208";
+
+    private static StatIndex JewelStats() => new(
+    [
+        new TradeStat("explicit.stat_cold_as_chaos", "Gain #% of Cold Damage as Extra Chaos Damage", "explicit"),
+        new TradeStat(GreenDreamManaStat,
+            "Passives granting Cold Resistance or all Elemental Resistances in Radius\nalso grant increased Maximum Mana at #% of its value", "explicit"),
+        new TradeStat("explicit.stat_other_radius",
+            "Passives granting Fire Resistance or all Elemental Resistances in Radius\nalso grant increased Maximum Life at #% of its value", "explicit"),
+    ]);
+
+    [TestMethod]
+    public void MultilineModifierBecomesOneFilter()
+    {
+        var item = Fixture.Parse("poe1/foulborn-unique-jewel-multiline.txt", GameId.Poe1);
+        Assert.AreEqual(3, item.Modifiers.Count, "the clipboard still carries two lines for the radius modifier");
+
+        var builder = new TradeQueryBuilder();
+        var options = new TradeQueryOptions(Games.Poe1.FilterLayout);
+        var stats = builder.CreateDefaultFilters(item, JewelStats(), options).Where(f => f.Kind == FilterKind.Stat).ToList();
+
+        Assert.AreEqual(2, stats.Count);
+        var radius = stats.Single(f => f.StatId == GreenDreamManaStat);
+        StringAssert.StartsWith(radius.Label, "Passives granting Cold Resistance");
+        StringAssert.EndsWith(radius.Label, "at 75% of its value");
+        Assert.AreEqual(75d, radius.RolledValue, "the value comes from the second line");
+        Assert.AreEqual(75d, radius.Min, "uniques search from the rolled value");
+
+        radius.Enabled = true;
+        var filters = builder.Build(item, stats, options)["query"]!["stats"]![0]!["filters"]!.AsArray();
+        Assert.AreEqual(1, filters.Count);
+        Assert.AreEqual(GreenDreamManaStat, filters[0]!["id"]!.GetValue<string>());
+    }
+
+    [TestMethod]
+    public void LoneLineOfMultilineStatStillResolves()
+    {
+        var index = JewelStats();
+        Assert.IsTrue(index.TryResolve("explicit", ModifierText.Normalize("also grant increased Maximum Mana at 75% of its value"), false, out var s));
+        Assert.AreEqual(GreenDreamManaStat, s.Id);
+    }
+
+    [TestMethod]
+    public void UniqueStatMinimumsUseTheRolledValue()
+    {
+        var item = Fixture.Parse("poe1/unique-helmet-keystone.txt", GameId.Poe1);
+        var index = new StatIndex(
+        [
+            new TradeStat("explicit.stat_es_global", "+# to maximum Energy Shield", "explicit"),
+            new TradeStat("explicit.stat_4052037485", "+# to maximum Energy Shield (Local)", "explicit"),
+            new TradeStat("explicit.stat_3767873853", "Reflects # Physical Damage to Melee Attackers", "explicit"),
+            new TradeStat("explicit.stat_3441651621", "+# Physical Damage taken from Attack Hits", "explicit"),
+            new TradeStat("explicit.stat_98977150", "Pain Attunement", "explicit"),
+        ]);
+
+        var options = new TradeQueryOptions(Games.Poe1.FilterLayout, 90);
+        var stats = new TradeQueryBuilder().CreateDefaultFilters(item, index, options).Where(f => f.Kind == FilterKind.Stat).ToList();
+
+        Assert.AreEqual(4, stats.Count, "keystone lines are searchable too");
+        var es = stats.Single(f => f.StatId == "explicit.stat_4052037485");
+        Assert.AreEqual(225d, es.Min, "a perfect roll must not search from 90% of itself");
+        Assert.AreEqual(5d, stats.Single(f => f.StatId == "explicit.stat_3767873853").Min);
+        Assert.AreEqual(25d, stats.Single(f => f.StatId == "explicit.stat_3441651621").Min);
+        Assert.IsNull(stats.Single(f => f.StatId == "explicit.stat_98977150").Min);
+    }
+
     [TestMethod]
     public void Poe1SocketsAndLinksUseSocketFilters()
     {
@@ -280,13 +346,14 @@ public sealed class TradeQueryTests
     }
 
     [TestMethod]
-    public void StatsResponseExpandsMultilineEntries()
+    public void StatsResponseKeepsMultilineEntriesWhole()
     {
         const string json = """{"result":[{"label":"Explicit","entries":[{"id":"explicit.stat_1","text":"+# to maximum Life","type":"explicit"},{"id":"explicit.stat_2","text":"Line one #\nLine two #","type":"explicit"}]}]}""";
         using var doc = JsonDocument.Parse(json);
         var stats = TradeDataProvider.ParseStats(doc.RootElement).ToList();
-        Assert.AreEqual(3, stats.Count);
-        Assert.AreEqual("explicit.stat_2", stats[2].Id);
+        Assert.AreEqual(2, stats.Count);
+        Assert.AreEqual("explicit.stat_2", stats[1].Id);
+        Assert.AreEqual("Line one #\nLine two #", stats[1].Text);
     }
 
     [TestMethod]

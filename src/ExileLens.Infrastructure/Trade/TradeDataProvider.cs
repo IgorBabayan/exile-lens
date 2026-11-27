@@ -289,11 +289,9 @@ public sealed class TradeDataProvider(HttpClient http, RateLimiter limiter, IApp
                     continue;
                 }
 
+                // Multi-line stats stay whole: StatIndex matches them against consecutive item lines.
                 type ??= id.Split('.')[0];
-                foreach (var line in text.Split('\n'))
-                {
-                    yield return new TradeStat(id, line, type);
-                }
+                yield return new TradeStat(id, text, type);
             }
         }
     }

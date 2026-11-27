@@ -1,0 +1,22 @@
+Item Class: Helmets
+Rarity: Unique
+Crown of Thorns
+Vine Circlet
+--------
+Energy Shield: 234 (augmented)
+--------
+Requirements:
+Level: 3
+Int: 13
+--------
+Sockets: B-B
+--------
+Item Level: 84
+--------
++225 to maximum Energy Shield
+Reflects 5 Physical Damage to Melee Attackers
++25 Physical Damage taken from Attack Hits
+Pain Attunement
+--------
+Lift it lightly, don it slow.
+The spikes point out and in, you know.
