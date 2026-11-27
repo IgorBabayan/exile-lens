@@ -418,6 +418,8 @@ public sealed partial class SettingsViewModel : PageViewModel
 
     public bool AutoSearch { get => _settings.Current.Trade.AutoSearch; set => Set(s => s.Trade.AutoSearch = value); }
 
+    public bool ShowCurrencyIcons { get => _settings.Current.Trade.ShowCurrencyIcons; set => Set(s => s.Trade.ShowCurrencyIcons = value); }
+
     public string MinimumTradeValue
     {
         get => Formatting.Amount(_settings.Current.Trade.MinimumTradeValue);

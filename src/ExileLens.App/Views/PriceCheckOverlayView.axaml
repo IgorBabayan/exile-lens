@@ -49,6 +49,38 @@
       </StackPanel>
     </Grid>
 
+    <!-- Unidentified unique: ask which unique it is; the search starts after the pick. -->
+    <StackPanel IsVisible="{Binding IsChoosingUnique}" Spacing="6">
+      <TextBlock Text="Which unique is this?" Classes="section" />
+      <TextBlock Classes="caption" TextWrapping="Wrap"
+                 Text="The item is unidentified, so its name is unknown. Pick the unique to price it." />
+      <StackPanel IsVisible="{Binding IsLoadingUniques}" Spacing="6" Margin="0,4,0,2">
+        <Border Classes="skeleton" Height="30" />
+        <Border Classes="skeleton" Height="30" />
+        <Border Classes="skeleton" Height="30" />
+      </StackPanel>
+      <ScrollViewer MaxHeight="380" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
+                    IsVisible="{Binding !IsLoadingUniques}">
+        <ItemsControl ItemsSource="{Binding UniqueChoices}" Margin="0,0,4,0">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="x:String">
+              <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Margin="0,2" Padding="12,7"
+                      Command="{Binding $parent[UserControl].((vm:PriceCheckOverlayViewModel)DataContext).ChooseUniqueCommand}"
+                      CommandParameter="{Binding}">
+                <TextBlock Text="{Binding}" FontWeight="Medium" TextTrimming="CharacterEllipsis"
+                           Foreground="{Binding $parent[UserControl].((vm:PriceCheckOverlayViewModel)DataContext).UniqueBrush}" />
+              </Button>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+      <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Margin="0,6,0,0"
+              Command="{Binding SkipUniqueChoiceCommand}" ToolTip.Tip="Search every unique on this base">
+        <TextBlock Text="Any unique on this base" Classes="secondary" />
+      </Button>
+    </StackPanel>
+
+    <StackPanel IsVisible="{Binding !IsChoosingUnique}" Spacing="0">
     <!-- Estimated market value -->
     <Border Classes="card" Padding="14,12">
       <StackPanel Spacing="4">
@@ -60,7 +92,11 @@
         <StackPanel IsVisible="{Binding !IsLoading}" Spacing="3">
           <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasPrice}">
             <TextBlock Text="{Binding PriceMain}" FontSize="24" FontWeight="SemiBold" />
-            <TextBlock Text="{Binding PriceCurrency}" FontSize="15" Classes="secondary" VerticalAlignment="Bottom" Margin="0,0,0,3" />
+            <TextBlock Text="{Binding PriceCurrency}" FontSize="15" Classes="secondary" VerticalAlignment="Bottom" Margin="0,0,0,3"
+                       IsVisible="{Binding PriceCurrencyIcon, Converter={x:Static ObjectConverters.IsNull}}" />
+            <Image Source="{Binding PriceCurrencyIcon}" Width="26" Height="26" VerticalAlignment="Center"
+                   RenderOptions.BitmapInterpolationMode="HighQuality" ToolTip.Tip="{Binding PriceCurrency}"
+                   IsVisible="{Binding PriceCurrencyIcon, Converter={x:Static ObjectConverters.IsNotNull}}" />
           </StackPanel>
           <TextBlock Text="Unavailable" FontSize="18" FontWeight="Medium" Classes="secondary" IsVisible="{Binding !HasPrice}" />
           <TextBlock Text="{Binding PriceDetail}" Classes="secondary" TextWrapping="Wrap" />
@@ -126,6 +162,7 @@
         </StackPanel>
       </Border>
     </Grid>
+    </StackPanel>
   </StackPanel>
 
     <Expander Grid.Row="1" Header="Market listings" Margin="0,4,0,0" IsExpanded="{Binding ShowListings, Mode=TwoWay}" IsVisible="{Binding HasListings}" Padding="0,2,0,0">
@@ -138,7 +175,16 @@
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:ListingItemViewModel">
             <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4">
-              <TextBlock Text="{Binding Price}" FontWeight="Medium" MinWidth="120" />
+              <Panel>
+                <TextBlock Text="{Binding Price}" FontWeight="Medium" MinWidth="120"
+                           IsVisible="{Binding CurrencyIcon, Converter={x:Static ObjectConverters.IsNull}}" />
+                <StackPanel Orientation="Horizontal" Spacing="5" MinWidth="64" VerticalAlignment="Top" ToolTip.Tip="{Binding CurrencyName}"
+                            IsVisible="{Binding CurrencyIcon, Converter={x:Static ObjectConverters.IsNotNull}}">
+                  <TextBlock Text="{Binding Amount}" FontWeight="Medium" VerticalAlignment="Center" />
+                  <Image Source="{Binding CurrencyIcon}" Width="18" Height="18" VerticalAlignment="Center"
+                         RenderOptions.BitmapInterpolationMode="HighQuality" />
+                </StackPanel>
+              </Panel>
               <StackPanel Grid.Column="1" Margin="8,0">
                 <StackPanel Orientation="Horizontal" Spacing="6">
                   <Ellipse Width="7" Height="7" Fill="{DynamicResource SafeBrush}" IsVisible="{Binding Online}" VerticalAlignment="Center" />
@@ -154,7 +200,7 @@
       </ScrollViewer>
     </Expander>
 
-  <StackPanel Grid.Row="2" Spacing="0">
+  <StackPanel Grid.Row="2" Spacing="0" IsVisible="{Binding !IsChoosingUnique}">
     <!-- Disenchantment / vendor / salvage -->
     <StackPanel IsVisible="{Binding HasRewards}">
       <Border Classes="divider" Margin="0,14,0,4" />

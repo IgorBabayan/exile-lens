@@ -48,6 +48,13 @@ public interface ITradeDataProvider
     /// </summary>
     Task<IReadOnlyDictionary<string, string>> GetCurrencyIconsAsync(IGameModule game, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyDictionary<string, string>>(new Dictionary<string, string>());
+
+    /// <summary>
+    /// Base type (case-insensitive) to the names of the uniques on that base, sorted. Used to ask which unique an
+    /// unidentified item is. Empty when unavailable; never throws for network errors.
+    /// </summary>
+    Task<IReadOnlyDictionary<string, string[]>> GetUniquesByBaseAsync(IGameModule game, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyDictionary<string, string[]>>(new Dictionary<string, string[]>());
 }
 
 public interface IMarketDataProvider

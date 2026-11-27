@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using ExileLens.App.Services;
 using ExileLens.Application.Capture;
+using ExileLens.Application.Games;
 using ExileLens.Application.History;
 using ExileLens.Application.Platform;
 using ExileLens.Application.Pricing;
@@ -100,7 +101,29 @@ public sealed partial class FilterItemViewModel : ObservableObject
     }
 }
 
-public sealed record ListingItemViewModel(string Price, string Seller, bool Online, string Age, string? Summary);
+/// <summary>One market listing. <see cref="CurrencyIcon"/> is set only when prices are shown with currency art.</summary>
+public sealed partial class ListingItemViewModel(string amount, string currencyName, string price, string seller, bool online, string age, string? summary)
+    : ObservableObject
+{
+    public string Amount { get; } = amount;
+
+    /// <summary>Singular currency name ("Chaos Orb"): icon lookup key and the icon's tooltip.</summary>
+    public string CurrencyName { get; } = currencyName;
+
+    /// <summary>Amount with the currency name, shown while no icon is available.</summary>
+    public string Price { get; } = price;
+
+    public string Seller { get; } = seller;
+
+    public bool Online { get; } = online;
+
+    public string Age { get; } = age;
+
+    public string? Summary { get; } = summary;
+
+    [ObservableProperty]
+    private Bitmap? _currencyIcon;
+}
 
 public sealed record KeyValueRow(string Label, string Value);
 
@@ -115,13 +138,17 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
     private readonly IClipboardService _clipboard;
     private readonly IOverlayService _overlay;
     private readonly ItemIconLoader _icons;
+    private readonly CurrencyIconProvider _currencyIcons;
     private readonly TimeProvider _time;
     private readonly DispatcherTimer _debounce;
     private CancellationTokenSource? _cts;
     private CancellationTokenSource? _iconCts;
+    private CancellationTokenSource? _currencyIconCts;
+    private CancellationTokenSource? _uniqueCts;
     private string? _iconUrl;
     private PriceCheckSession? _session;
     private bool _historyRecorded;
+    private bool _startRequested;
 
     public PriceCheckOverlayViewModel(
         IPriceEstimationService pricing,
@@ -130,6 +157,7 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
         IClipboardService clipboard,
         IOverlayService overlay,
         ItemIconLoader icons,
+        CurrencyIconProvider currencyIcons,
         TimeProvider time)
     {
         _pricing = pricing;
@@ -138,6 +166,7 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
         _clipboard = clipboard;
         _overlay = overlay;
         _icons = icons;
+        _currencyIcons = currencyIcons;
         _time = time;
         _debounce = new DispatcherTimer(FilterSearchDelay, DispatcherPriority.Background, (_, _) =>
         {
@@ -193,6 +222,10 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
     [ObservableProperty]
     private string _priceCurrency = string.Empty;
 
+    /// <summary>Art of the estimate's currency; null shows <see cref="PriceCurrency"/> as text.</summary>
+    [ObservableProperty]
+    private Bitmap? _priceCurrencyIcon;
+
     [ObservableProperty]
     private string _priceDetail = string.Empty;
 
@@ -227,6 +260,20 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
 
     [ObservableProperty]
     private bool _canOpenTrade;
+
+    /// <summary>The item is an unidentified unique: the overlay asks which unique it is before searching.</summary>
+    [ObservableProperty]
+    private bool _isChoosingUnique;
+
+    /// <summary>The unique list is still being fetched (first use only; it is disk cached afterwards).</summary>
+    [ObservableProperty]
+    private bool _isLoadingUniques;
+
+    /// <summary>Uniques the unidentified item may be (the cached list itself, not a copy).</summary>
+    [ObservableProperty]
+    private IReadOnlyList<string> _uniqueChoices = [];
+
+    public IBrush UniqueBrush { get; } = DangerPalette.Rarity(ItemRarity.Unique);
 
     public ObservableCollection<FilterItemViewModel> StatFilters { get; } = [];
 
@@ -281,6 +328,48 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
 
     public void Load(PriceCheckSession session)
     {
+        CancelUniqueLookup();
+        _startRequested = false;
+        IsLoadingUniques = false;
+        UniqueChoices = [];
+        IsChoosingUnique = false;
+        var lookupUniques = false;
+
+        if (_pricing.NeedsUniqueChoice(session))
+        {
+            var candidates = _pricing.PeekUniqueCandidates(session);
+            if (candidates is { Count: 1 })
+            {
+                // Only one unique on this base: nothing to ask.
+                session = _pricing.ChooseUnique(session, candidates[0]);
+            }
+            else if (candidates is null)
+            {
+                // Unique list not loaded yet (first run or startup still warming it): ask once it arrives.
+                IsChoosingUnique = true;
+                IsLoadingUniques = true;
+                lookupUniques = true;
+            }
+            else if (candidates.Count > 1)
+            {
+                IsChoosingUnique = true;
+                UniqueChoices = candidates;
+            }
+
+            // No known unique on this base: search any unique of the base.
+        }
+
+        LoadSession(session);
+        if (lookupUniques)
+        {
+            // After LoadSession: the lookup compares its session with the current one when it completes.
+            _uniqueCts = new CancellationTokenSource();
+            _ = LookupUniquesAsync(session, _uniqueCts.Token);
+        }
+    }
+
+    private void LoadSession(PriceCheckSession session)
+    {
         _session = session;
         _historyRecorded = false;
         var item = session.Item;
@@ -306,9 +395,11 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
         OnPropertyChanged(nameof(HasStatFilters));
         OnPropertyChanged(nameof(HasPropertyFilters));
 
+        CancelCurrencyIcons();
         Listings.Clear();
         OnPropertyChanged(nameof(HasListings));
         HasPrice = false;
+        PriceCurrencyIcon = null;
         Error = null;
         PriceNote = null;
         CanOpenTrade = !session.UsesBulkPricing;
@@ -319,8 +410,15 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
 
     public void Start()
     {
+        _startRequested = true;
         if (_session is null)
         {
+            return;
+        }
+
+        if (IsChoosingUnique)
+        {
+            PriceDetail = string.Empty; // the search starts once a unique is picked
             return;
         }
 
@@ -336,6 +434,8 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
 
     public void Detach()
     {
+        CancelUniqueLookup();
+        CancelCurrencyIcons();
         _debounce.Stop();
         IsSearchPending = false;
         _iconCts?.Cancel();
@@ -354,9 +454,108 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
         IsSearchPending = true;
     }
 
+    private async Task LookupUniquesAsync(PriceCheckSession session, CancellationToken token)
+    {
+        try
+        {
+            var candidates = await _pricing.GetUniqueCandidatesAsync(session, token);
+            if (token.IsCancellationRequested || !ReferenceEquals(_session, session))
+            {
+                return;
+            }
+
+            IsLoadingUniques = false;
+            switch (candidates.Count)
+            {
+                case 0:
+                    // Unknown base or no data: price it as any unique of the base.
+                    IsChoosingUnique = false;
+                    if (_startRequested)
+                    {
+                        Start();
+                    }
+
+                    break;
+                case 1:
+                    SelectUnique(candidates[0], userChoice: false);
+                    break;
+                default:
+                    UniqueChoices = candidates;
+                    break;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // another item was opened or the overlay closed
+        }
+    }
+
+    [RelayCommand]
+    private void ChooseUnique(string? name)
+    {
+        if (name is not null && IsChoosingUnique && _session is not null)
+        {
+            SelectUnique(name, userChoice: true);
+        }
+    }
+
+    /// <summary>Prices the unidentified item as any unique of its base.</summary>
+    [RelayCommand]
+    private void SkipUniqueChoice()
+    {
+        if (!IsChoosingUnique || _session is null)
+        {
+            return;
+        }
+
+        CancelUniqueLookup();
+        IsLoadingUniques = false;
+        UniqueChoices = [];
+        IsChoosingUnique = false;
+        _ = RunAsync();
+    }
+
+    private void SelectUnique(string name, bool userChoice)
+    {
+        CancelUniqueLookup();
+        IsLoadingUniques = false;
+        UniqueChoices = [];
+        IsChoosingUnique = false;
+        LoadSession(_pricing.ChooseUnique(_session!, name));
+
+        // A pick is an explicit request to price the item; an automatic single match follows the auto-search setting.
+        if (userChoice)
+        {
+            _ = RunAsync();
+        }
+        else if (_startRequested)
+        {
+            Start();
+        }
+    }
+
+    private void CancelUniqueLookup()
+    {
+        _uniqueCts?.Cancel();
+        _uniqueCts?.Dispose();
+        _uniqueCts = null;
+    }
+
+    private void CancelCurrencyIcons()
+    {
+        _currencyIconCts?.Cancel();
+        _currencyIconCts?.Dispose();
+        _currencyIconCts = null;
+    }
+
     [RelayCommand]
     private Task RefreshAsync()
     {
+        if (IsChoosingUnique)
+        {
+            return Task.CompletedTask;
+        }
+
         // Explicit refresh wins over a pending filter search.
         _debounce.Stop();
         IsSearchPending = false;
@@ -447,6 +646,9 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
     private void Apply(PriceCheckResult result)
     {
         var e = result.Estimate;
+        var game = _session!.Game;
+        var useIcons = _settings.Current.Trade.ShowCurrencyIcons;
+        CancelCurrencyIcons();
         CanOpenTrade = !_session!.UsesBulkPricing;
         ShowIcon(result.IconUrl);
         Error = result.Error;
@@ -457,6 +659,7 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
             var high = e.RangeHigh ?? e.Median!.Value;
             PriceMain = Formatting.Range(low, high);
             PriceCurrency = Formatting.Plural(e.ValuationCurrency, high);
+            PriceCurrencyIcon = useIcons ? _currencyIcons.TryGet(game, e.ValuationCurrency) : null;
             var stack = _session.Item.StackSize is > 1 && _session.UsesBulkPricing
                 ? $" · stack of {_session.Item.StackSize}: {Formatting.Amount(e.Median!.Value * _session.Item.StackSize.Value)}"
                 : string.Empty;
@@ -468,6 +671,7 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
         else
         {
             HasPrice = false;
+            PriceCurrencyIcon = null;
             PriceDetail = e.MatchingListings > 0
                 ? $"{e.MatchingListings} listings, but none could be valued"
                 : result.Error is null ? "No matching listings — not enough market data" : string.Empty;
@@ -478,19 +682,92 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
             : $"Exchange rate data · updated {Formatting.Age(e.DataTimestamp, _time.GetUtcNow())}";
 
         Listings.Clear();
+        var missingIcons = false;
         foreach (var l in result.Listings.Take(_settings.Current.Trade.MaxListings))
         {
-            Listings.Add(new ListingItemViewModel(
-                $"{Formatting.Amount(l.ListedPrice.Amount)} {Formatting.Plural(l.ListedPrice.Currency, l.ListedPrice.Amount)}",
+            var amount = Formatting.Amount(l.ListedPrice.Amount);
+            var currency = l.ListedPrice.Currency;
+            var row = new ListingItemViewModel(
+                amount,
+                currency,
+                $"{amount} {Formatting.Plural(currency, l.ListedPrice.Amount)}",
                 l.AccountName ?? "Unknown seller",
                 l.SellerOnline == true,
                 l.IndexedAt is { } at ? Formatting.Age(at, _time.GetUtcNow()) : string.Empty,
-                l.ItemSummary));
+                l.ItemSummary);
+            if (useIcons)
+            {
+                row.CurrencyIcon = _currencyIcons.TryGet(game, currency);
+                missingIcons |= row.CurrencyIcon is null;
+            }
+
+            Listings.Add(row);
         }
 
         OnPropertyChanged(nameof(HasListings));
+        if (useIcons && (missingIcons || (HasPrice && PriceCurrencyIcon is null)))
+        {
+            _currencyIconCts = new CancellationTokenSource();
+            _ = LoadCurrencyIconsAsync(game, e.ValuationCurrency, _currencyIconCts.Token);
+        }
+
         ApplyRewards(result.Rewards, e);
         RecordHistory(result);
+    }
+
+    /// <summary>
+    /// First use only: fetches the art still missing after <see cref="Apply"/> and fills the rows in place. Each distinct
+    /// currency is loaded once; rows keep their text until the icon arrives (or for good, if there is no art).
+    /// </summary>
+    private async Task LoadCurrencyIconsAsync(IGameModule game, string valuationCurrency, CancellationToken token)
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (HasPrice && PriceCurrencyIcon is null)
+        {
+            names.Add(valuationCurrency);
+        }
+
+        foreach (var row in Listings)
+        {
+            if (row.CurrencyIcon is null)
+            {
+                names.Add(row.CurrencyName);
+            }
+        }
+
+        try
+        {
+            foreach (var name in names)
+            {
+                var bitmap = await _currencyIcons.GetAsync(game, name, token);
+                if (token.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                if (bitmap is null)
+                {
+                    continue;
+                }
+
+                if (HasPrice && PriceCurrencyIcon is null && string.Equals(name, valuationCurrency, StringComparison.OrdinalIgnoreCase))
+                {
+                    PriceCurrencyIcon = bitmap;
+                }
+
+                foreach (var row in Listings)
+                {
+                    if (row.CurrencyIcon is null && string.Equals(row.CurrencyName, name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        row.CurrencyIcon = bitmap;
+                    }
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // a newer result or another item replaced these rows
+        }
     }
 
     private void ApplyRewards(RewardSummary rewards, PriceEstimate? market)

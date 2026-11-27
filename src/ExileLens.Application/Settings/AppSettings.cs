@@ -85,6 +85,9 @@ public sealed class TradeSettings
 
     /// <summary>Buyout currency of the trade search (<see cref="TradePriceCurrency.Key"/>); "any" leaves it unrestricted.</summary>
     public string PriceCurrency { get; set; } = TradePriceCurrencies.AnyKey;
+
+    /// <summary>Show currency art instead of currency names next to prices in the price-check overlay.</summary>
+    public bool ShowCurrencyIcons { get; set; }
     public string MarketDataProvider { get; set; } = "poe.ninja";
 
     /// <summary>Optional base URL of a self-hosted caching proxy for poe.ninja (recommended by poe.ninja for desktop clients).</summary>

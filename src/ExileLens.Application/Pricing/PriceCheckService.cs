@@ -59,6 +59,18 @@ public interface IPriceEstimationService
     string? PeekIconUrl(PriceCheckSession session);
 
     string BuildTradeUrl(PriceCheckSession session);
+
+    /// <summary>True for an unidentified unique: its copy names only the base, so the user is asked which unique it is.</summary>
+    bool NeedsUniqueChoice(PriceCheckSession session);
+
+    /// <summary>Unique names on the session's base when the unique list is already loaded; null when it is not yet. Never blocks.</summary>
+    IReadOnlyList<string>? PeekUniqueCandidates(PriceCheckSession session);
+
+    /// <summary>Unique names on the session's base; empty when unknown or the list is unavailable.</summary>
+    Task<IReadOnlyList<string>> GetUniqueCandidatesAsync(PriceCheckSession session, CancellationToken cancellationToken);
+
+    /// <summary>New session for the same item priced as the named unique (fresh default filters, same game and league).</summary>
+    PriceCheckSession ChooseUnique(PriceCheckSession session, string uniqueName);
 }
 
 public sealed class PriceCheckService : IPriceEstimationService
@@ -74,6 +86,7 @@ public sealed class PriceCheckService : IPriceEstimationService
     private readonly ILogger<PriceCheckService> _logger;
     private readonly ConcurrentDictionary<string, Lazy<Task<(PriceEstimate, IReadOnlyList<MarketListing>, string?)>>> _inflight = new();
     private readonly ConcurrentDictionary<GameId, StatIndex> _statIndexes = new();
+    private readonly ConcurrentDictionary<GameId, IReadOnlyDictionary<string, string[]>> _uniques = new();
     private readonly ConcurrentDictionary<string, string> _icons = new(StringComparer.OrdinalIgnoreCase);
     private const int MaxRememberedIcons = 4096;
 
@@ -110,6 +123,40 @@ public sealed class PriceCheckService : IPriceEstimationService
 
         // Off the UI thread (after the await): parse the unique dust table so the first unique check doesn't pay for it.
         _ = game.UniqueDust;
+
+        // Unique names per base (disk cached): an unidentified unique can then offer its candidates instantly.
+        await LoadUniquesAsync(game, cancellationToken).ConfigureAwait(false);
+    }
+
+    public bool NeedsUniqueChoice(PriceCheckSession session) =>
+        !session.UsesBulkPricing && session.Item is { Rarity: ItemRarity.Unique, Name: null, BaseType.Length: > 0 };
+
+    public IReadOnlyList<string>? PeekUniqueCandidates(PriceCheckSession session) =>
+        _uniques.TryGetValue(session.Game.Game, out var map) ? Candidates(map, session.Item.BaseType) : null;
+
+    public async Task<IReadOnlyList<string>> GetUniqueCandidatesAsync(PriceCheckSession session, CancellationToken cancellationToken) =>
+        Candidates(await LoadUniquesAsync(session.Game, cancellationToken).ConfigureAwait(false), session.Item.BaseType);
+
+    public PriceCheckSession ChooseUnique(PriceCheckSession session, string uniqueName) =>
+        CreateSession(session.Item.WithName(uniqueName), session.Game, session.League);
+
+    private static string[] Candidates(IReadOnlyDictionary<string, string[]> map, string baseType) =>
+        map.TryGetValue(baseType, out var names) ? names : Array.Empty<string>();
+
+    private async Task<IReadOnlyDictionary<string, string[]>> LoadUniquesAsync(IGameModule game, CancellationToken cancellationToken)
+    {
+        if (_uniques.TryGetValue(game.Game, out var known))
+        {
+            return known;
+        }
+
+        var map = await _tradeData.GetUniquesByBaseAsync(game, cancellationToken).ConfigureAwait(false);
+        if (map.Count > 0)
+        {
+            _uniques[game.Game] = map; // an empty (failed) load is not remembered, so a later check retries
+        }
+
+        return map;
     }
 
     public PriceCheckSession CreateSession(ParsedItem item, IGameModule game, string league)

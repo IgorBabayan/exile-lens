@@ -99,10 +99,16 @@ public sealed partial class App : Avalonia.Application
             // Warm caches without blocking the UI: stat definitions and league lists.
             var pricing = services.GetRequiredService<PriceCheckService>();
             var leagues = services.GetRequiredService<ILeagueService>();
+            var currencyIcons = services.GetRequiredService<CurrencyIconProvider>();
+            var warmCurrencyIcons = services.GetRequiredService<ISettingsService>().Current.Trade.ShowCurrencyIcons;
             foreach (var module in services.GetRequiredService<IGameRegistry>().All)
             {
                 _ = leagues.GetLeaguesAsync(module, CancellationToken.None);
                 _ = pricing.PreloadAsync(module, CancellationToken.None);
+                if (warmCurrencyIcons)
+                {
+                    _ = currencyIcons.WarmAsync(module);
+                }
             }
         }
         catch (Exception ex)

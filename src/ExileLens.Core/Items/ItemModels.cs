@@ -136,6 +136,41 @@ public sealed class ParsedItem
 
     public const string FoulbornPrefix = "Foulborn ";
 
+    /// <summary>
+    /// Copy with another unique name, e.g. the unique the user picked for an unidentified item. Everything parsed from
+    /// the clipboard is kept; the parsed collections are immutable after parsing and are shared, not copied.
+    /// </summary>
+    public ParsedItem WithName(string? name) => new()
+    {
+        Game = Game,
+        RawText = RawText,
+        ItemClass = ItemClass,
+        Rarity = Rarity,
+        Category = Category,
+        Name = name,
+        BaseType = BaseType,
+        ItemLevel = ItemLevel,
+        Quality = Quality,
+        GemLevel = GemLevel,
+        MapTier = MapTier,
+        StackSize = StackSize,
+        MaxStackSize = MaxStackSize,
+        RequiredLevel = RequiredLevel,
+        IsCorrupted = IsCorrupted,
+        IsIdentified = IsIdentified,
+        IsMirrored = IsMirrored,
+        IsFractured = IsFractured,
+        IsSynthesised = IsSynthesised,
+        IsFoulborn = Rarity == ItemRarity.Unique && name is not null && name.StartsWith(FoulbornPrefix, StringComparison.Ordinal),
+        Sockets = Sockets,
+        Influences = Influences,
+        Modifiers = Modifiers,
+        Affixes = Affixes,
+        Properties = Properties,
+        HasAdvancedAffixInfo = HasAdvancedAffixInfo,
+        UnparsedLines = UnparsedLines,
+    };
+
     public IEnumerable<ItemModifier> ModifiersOf(ModifierKind kind)
     {
         foreach (var m in Modifiers)

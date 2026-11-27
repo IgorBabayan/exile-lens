@@ -268,6 +268,7 @@
           </StackPanel>
           <ToggleSwitch IsChecked="{Binding AutoSearch}" OnContent="Search automatically when the overlay opens" OffContent="Search automatically when the overlay opens" />
           <ToggleSwitch IsChecked="{Binding EnableModifiersByDefault}" OnContent="Enable modifier filters by default" OffContent="Enable modifier filters by default" />
+          <ToggleSwitch IsChecked="{Binding ShowCurrencyIcons}" OnContent="Show currency icons instead of names in prices" OffContent="Show currency icons instead of names in prices" />
           <StackPanel Classes="row">
             <TextBlock Classes="label" Text="poe.ninja proxy (optional)" />
             <TextBox Text="{Binding NinjaBaseUrl}" Width="320" PlaceholderText="https://poe.ninja" />

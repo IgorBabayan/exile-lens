@@ -160,6 +160,31 @@ public sealed class TradeQueryTests
     }
 
     [TestMethod]
+    public void UnidentifiedUniqueSearchesItsBaseUntilAUniqueIsChosen()
+    {
+        var item = Fixture.Parse("poe1/unidentified-unique-bow.txt", GameId.Poe1);
+        Assert.IsFalse(item.IsIdentified);
+        Assert.IsNull(item.Name, "an unidentified copy only names the base");
+        Assert.AreEqual("Imperial Bow", item.BaseType);
+
+        var builder = new TradeQueryBuilder();
+        var options = new TradeQueryOptions(Games.Poe1.FilterLayout);
+        var query = builder.Build(item, builder.CreateDefaultFilters(item, Stats(), options), options)["query"]!;
+        Assert.IsNull(query["name"]);
+        Assert.AreEqual("Imperial Bow", query["type"]!.GetValue<string>(), "without a name the base must still narrow the search");
+        Assert.AreEqual("unique", query["filters"]!["type_filters"]!["filters"]!["rarity"]!["option"]!.GetValue<string>());
+
+        var chosen = item.WithName("Lioneye's Glare");
+        Assert.AreEqual("Lioneye's Glare", chosen.DisplayName);
+        Assert.AreEqual(item.ItemLevel, chosen.ItemLevel);
+        Assert.AreSame(item.Modifiers, chosen.Modifiers);
+        query = builder.Build(chosen, builder.CreateDefaultFilters(chosen, Stats(), options), options)["query"]!;
+        Assert.AreEqual("Lioneye's Glare", query["name"]!.GetValue<string>());
+        Assert.AreEqual("Imperial Bow", query["type"]!.GetValue<string>());
+        Assert.AreEqual("false", query["filters"]!["misc_filters"]!["filters"]!["foulborn_item"]!["option"]!.GetValue<string>());
+    }
+
+    [TestMethod]
     public void FoulbornUniqueSearchesBaseNameWithFoulbornFilter()
     {
         var item = Fixture.Parse("poe1/foulborn-unique-armour.txt", GameId.Poe1);
@@ -354,6 +379,18 @@ public sealed class TradeQueryTests
         Assert.AreEqual(2, stats.Count);
         Assert.AreEqual("explicit.stat_2", stats[1].Id);
         Assert.AreEqual("Line one #\nLine two #", stats[1].Text);
+    }
+
+    [TestMethod]
+    public void ItemDataYieldsSortedDistinctUniquesPerBase()
+    {
+        const string json = """{"result":[{"id":"weapon","label":"Weapons","entries":[{"type":"Imperial Bow"},{"name":"Lioneye's Glare","type":"Imperial Bow","flags":{"unique":true}},{"name":"Doomfletch","type":"Imperial Bow","flags":{"unique":true}},{"name":"Doomfletch","type":"Imperial Bow","disc":"legacy","flags":{"unique":true}},{"name":"Not unique","type":"Imperial Bow","flags":{"unique":false}},{"name":"Voltaxic Rift","type":"Spine Bow","flags":{"unique":true}}]},{"id":"accessory","entries":[{"name":"Astramentis","type":"Onyx Amulet","flags":{"unique":true}}]}]}""";
+        using var doc = JsonDocument.Parse(json);
+        var uniques = TradeDataProvider.ParseUniques(doc.RootElement);
+        Assert.AreEqual(3, uniques.Count);
+        CollectionAssert.AreEqual(new[] { "Doomfletch", "Lioneye's Glare" }, uniques["imperial bow"]);
+        CollectionAssert.AreEqual(new[] { "Voltaxic Rift" }, uniques["Spine Bow"]);
+        CollectionAssert.AreEqual(new[] { "Astramentis" }, uniques["Onyx Amulet"]);
     }
 
     [TestMethod]

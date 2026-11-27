@@ -170,12 +170,13 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
             ["status"] = new JsonObject { ["option"] = TradeListingStatuses.ApiId(options.Status) },
         };
 
-        if (item.Rarity == ItemRarity.Unique && item.IsIdentified && item.TradeName is { } tradeName)
+        // An unidentified unique has no name in its copy; it carries one only once the user picked which unique it is.
+        if (item.Rarity == ItemRarity.Unique && item.TradeName is { } tradeName)
         {
             query["name"] = tradeName;
             query["type"] = item.BaseType;
         }
-        else if (item.Rarity is ItemRarity.Normal or ItemRarity.Rare || item.Category is not ItemCategory.Equipment)
+        else if (item.Rarity is ItemRarity.Normal or ItemRarity.Rare or ItemRarity.Unique || item.Category is not ItemCategory.Equipment)
         {
             query["type"] = item.BaseType;
         }
@@ -198,7 +199,7 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
         }
 
         // Foulborn and regular copies of a unique share a name but not a price: always pin the variant.
-        if (layout.FoulbornGroup is { } foulbornGroup && item.Rarity == ItemRarity.Unique && item.IsIdentified && item.Name is not null)
+        if (layout.FoulbornGroup is { } foulbornGroup && item.Rarity == ItemRarity.Unique && item.Name is not null)
         {
             Group(foulbornGroup)["foulborn_item"] = new JsonObject { ["option"] = item.IsFoulborn ? "true" : "false" };
         }
