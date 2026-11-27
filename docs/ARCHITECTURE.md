@@ -46,7 +46,7 @@ active profile, records unseen modifiers so they can be classified, and shows th
 | 7 | **One reused overlay window** with `ShowActivated=false`; content is swapped via DataTemplates. | Showing the overlay costs one layout pass, not a window creation, and it does not steal focus from the game. |
 | 8 | **The Escape/close chord is registered only while an overlay is visible.** | The game's own Escape menu is never blocked. |
 | 9 | **Settings use atomic writes with debouncing and a step-wise JSON migrator.** Corrupt files are moved aside and defaults are loaded. | A crash during a write can't corrupt settings, and old files keep loading. |
-| 10 | **No background polling.** Currency rates refresh lazily when used (after 15 min). League and stat data load once at startup (stats are cached on disk for 24 h). The Overview status timer runs only while that page is visible. | Keeps idle CPU near zero. |
+| 10 | **No background polling.** Currency rates refresh lazily when used (after 15 min). League and stat data load once at startup (stats are cached on disk for 24 h); concurrent league requests share one call and the list is only re-downloaded from Settings → Leagues → Refresh. The Overview status timer runs only while that page is visible. | Keeps idle CPU near zero. |
 | 11 | **Source-generated JSON** for every persisted document; frozen dictionaries for lookups. | Startup and parse speed, low allocations. |
 
 ## Performance

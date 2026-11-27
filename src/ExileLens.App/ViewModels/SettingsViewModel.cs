@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -22,8 +21,6 @@ public sealed record PlacementOption(OverlayPlacement Value, string Label);
 public sealed partial class SettingsViewModel : PageViewModel
 {
     private readonly ISettingsService _settings;
-    private readonly IGameRegistry _games;
-    private readonly ILeagueService _leagues;
     private readonly IAutoStartService _autoStart;
     private readonly IUpdateService _updates;
     private UpdateInfo? _update;
@@ -31,12 +28,11 @@ public sealed partial class SettingsViewModel : PageViewModel
     public SettingsViewModel(ISettingsService settings, IGameRegistry games, ILeagueService leagues, IAutoStartService autoStart, IUpdateService updates)
     {
         _settings = settings;
-        _games = games;
-        _leagues = leagues;
         _autoStart = autoStart;
         _updates = updates;
         GameOptions = games.All.Select(g => new GameOption(g.Game, g.DisplayName)).ToList();
         _shortcutGame = GameOptions[^1];
+        LeagueSelectors = games.All.Select(g => new LeagueSelectorViewModel(g, settings, leagues)).ToList();
         CurrentVersion = updates.CurrentVersion.ToString();
     }
 
@@ -168,8 +164,6 @@ public sealed partial class SettingsViewModel : PageViewModel
         OnPropertyChanged(nameof(PriceCheckHotkey));
         OnPropertyChanged(nameof(MapCheckHotkey));
         OnPropertyChanged(nameof(CloseOverlayHotkey));
-        OnPropertyChanged(nameof(League));
-        _ = LoadLeaguesAsync();
     }
 
     public string PriceCheckHotkey { get => G.PriceCheckHotkey; set => SetShortcut(g => g.PriceCheckHotkey = value); }
@@ -211,30 +205,19 @@ public sealed partial class SettingsViewModel : PageViewModel
         OnShortcutGameChanged(ShortcutGame);
     }
 
-    // ---------- League ----------
-    public ObservableCollection<string> LeagueOptions { get; } = [];
+    // ---------- Leagues (per game) ----------
+    public IReadOnlyList<LeagueSelectorViewModel> LeagueSelectors { get; }
 
-    public string? League
+    [RelayCommand]
+    private Task RefreshLeaguesAsync()
     {
-        get => G.League;
-        set
+        var loads = new Task[LeagueSelectors.Count];
+        for (var i = 0; i < loads.Length; i++)
         {
-            var game = ShortcutGame.Game;
-            _settings.Update(s => s.For(game).League = string.IsNullOrWhiteSpace(value) ? null : value);
-            OnPropertyChanged();
-        }
-    }
-
-    private async Task LoadLeaguesAsync()
-    {
-        var leagues = await _leagues.GetLeaguesAsync(_games.Get(ShortcutGame.Game), CancellationToken.None);
-        LeagueOptions.Clear();
-        foreach (var l in leagues)
-        {
-            LeagueOptions.Add(l.Id);
+            loads[i] = LeagueSelectors[i].LoadAsync(force: true);
         }
 
-        OnPropertyChanged(nameof(League));
+        return Task.WhenAll(loads);
     }
 
     // ---------- Trade ----------
@@ -385,7 +368,14 @@ public sealed partial class SettingsViewModel : PageViewModel
         }
     }
 
-    public override void OnActivated() => _ = LoadLeaguesAsync();
+    public override void OnActivated()
+    {
+        // Cheap when cached: the shared list is reused and the pickers are rebuilt only if it changed.
+        foreach (var selector in LeagueSelectors)
+        {
+            _ = selector.LoadAsync(force: false);
+        }
+    }
 
     private void Set(Action<AppSettings> mutate, [CallerMemberName] string? name = null)
     {

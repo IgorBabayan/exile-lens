@@ -110,10 +110,41 @@
         </StackPanel>
       </Border>
 
-      <!-- Shortcuts & league -->
+      <!-- Leagues -->
       <Border Classes="panel">
         <StackPanel Spacing="8">
-          <TextBlock Text="Keyboard shortcuts &amp; league" Classes="subtitle" />
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="Leagues" Classes="subtitle" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Content="Refresh league list" Command="{Binding RefreshLeaguesCommand}" />
+          </Grid>
+          <TextBlock Classes="caption" TextWrapping="Wrap"
+                     Text="Choose the league used for price checks, currency rates and trade links in each game. Automatic follows the current trade league." />
+          <ItemsControl ItemsSource="{Binding LeagueSelectors}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:LeagueSelectorViewModel">
+                <StackPanel Spacing="2" Margin="0,0,0,6">
+                  <StackPanel Classes="row">
+                    <TextBlock Classes="label" Text="{Binding GameName}" />
+                    <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding Selected}" Width="280">
+                      <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:LeagueOption"><TextBlock Text="{Binding Label}" /></DataTemplate>
+                      </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <TextBox Text="{Binding CustomLeague, UpdateSourceTrigger=LostFocus}" Width="220" PlaceholderText="League ID"
+                             IsVisible="{Binding IsCustomSelected}" />
+                  </StackPanel>
+                  <TextBlock Text="{Binding Status}" Classes="caption" TextWrapping="Wrap" Margin="240,0,0,0" />
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+
+      <!-- Shortcuts -->
+      <Border Classes="panel">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Keyboard shortcuts" Classes="subtitle" />
           <TextBlock Classes="caption" TextWrapping="Wrap"
                      Text="Click a field and press the key combination. Shortcuts only act while the game window is focused; elsewhere the keys reach other apps normally." />
           <StackPanel Classes="row">
@@ -139,10 +170,6 @@
           </StackPanel>
           <TextBlock Text="{Binding ShortcutError}" Foreground="{DynamicResource WarningBrush}" TextWrapping="Wrap"
                      IsVisible="{Binding ShortcutError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-          <StackPanel Classes="row">
-            <TextBlock Classes="label" Text="Active league" />
-            <AutoCompleteBox ItemsSource="{Binding LeagueOptions}" Text="{Binding League}" Width="260" FilterMode="Contains" />
-          </StackPanel>
         </StackPanel>
       </Border>
 
