@@ -32,7 +32,7 @@
             <Button Content="Use for map checks" Command="{Binding MakeActiveCommand}" IsVisible="{Binding !IsActiveProfile}" />
           </WrapPanel>
           <WrapPanel ItemSpacing="8" LineSpacing="8">
-            <TextBox Text="{Binding ProfileName}" Width="230" Watermark="Profile name" />
+            <TextBox Text="{Binding ProfileName}" Width="230" PlaceholderText="Profile name" />
             <Button Content="Rename" Command="{Binding RenameProfileCommand}" />
             <Button Content="New" Command="{Binding NewProfileCommand}" />
             <Button Content="Duplicate" Command="{Binding DuplicateProfileCommand}" />
@@ -45,7 +45,7 @@
 
       <!-- Filters & bulk actions -->
       <WrapPanel ItemSpacing="8" LineSpacing="8">
-        <TextBox Text="{Binding SearchText}" Width="280" Watermark="Search modifiers" />
+        <TextBox Text="{Binding SearchText}" Width="280" PlaceholderText="Search modifiers" />
         <ComboBox ItemsSource="{Binding CategoryOptions}" SelectedItem="{Binding SelectedCategory}" MinWidth="170" />
         <ComboBox ItemsSource="{Binding LevelOptions}" SelectedItem="{Binding SelectedLevel}" MinWidth="150" />
         <Button Content="Select all shown" Command="{Binding SelectAllVisibleCommand}" />
@@ -70,7 +70,7 @@
           <TextBox Text="{Binding CombinationName}" Width="240" />
           <Button Content="Add from selected" Command="{Binding AddCombinationCommand}" />
           <TextBlock Text="Escalate when this many warnings appear together:" Classes="secondary" VerticalAlignment="Center" Margin="12,0,0,0" />
-          <TextBox Text="{Binding EscalateText}" Width="60" Watermark="off" />
+          <TextBox Text="{Binding EscalateText}" Width="60" PlaceholderText="off" />
         </WrapPanel>
         <ItemsControl ItemsSource="{Binding Combinations}">
           <ItemsControl.ItemTemplate>
@@ -118,7 +118,7 @@
                 <TextBox Grid.Column="1" Text="{Binding WarnAtText}" Width="70" Margin="6,0,16,0" IsVisible="{Binding HasValue}" />
                 <TextBlock Grid.Column="2" Text="Dangerous at ≥" Classes="secondary" VerticalAlignment="Center" IsVisible="{Binding HasValue}" />
                 <TextBox Grid.Column="3" Text="{Binding DangerAtText}" Width="70" Margin="6,0,16,0" IsVisible="{Binding HasValue}" />
-                <TextBox Grid.Column="4" Text="{Binding Note}" Watermark="Notes for this build" />
+                <TextBox Grid.Column="4" Text="{Binding Note}" PlaceholderText="Notes for this build" />
               </Grid>
             </StackPanel>
           </Border>

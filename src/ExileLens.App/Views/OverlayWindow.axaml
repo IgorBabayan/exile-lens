@@ -2,7 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="ExileLens.App.Views.OverlayWindow"
         Title="Exile Lens overlay"
-        SystemDecorations="None"
+        WindowDecorations="None"
         Topmost="True"
         ShowInTaskbar="False"
         ShowActivated="False"

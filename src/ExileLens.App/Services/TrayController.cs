@@ -79,7 +79,7 @@ internal sealed class TrayController(
         var gameMenu = new NativeMenu();
         foreach (var (label, value) in new[] { ("Detect automatically", GameSelection.Auto), ("Path of Exile", GameSelection.Poe1), ("Path of Exile 2", GameSelection.Poe2) })
         {
-            var item = new NativeMenuItem(label) { ToggleType = NativeMenuItemToggleType.Radio, IsChecked = s.General.Game == value };
+            var item = new NativeMenuItem(label) { ToggleType = MenuItemToggleType.Radio, IsChecked = s.General.Game == value };
             item.Click += (_, _) => settings.Update(x => x.General.Game = value);
             gameMenu.Add(item);
         }
@@ -94,7 +94,7 @@ internal sealed class TrayController(
             foreach (var p in profiles.GetProfiles(game))
             {
                 var id = p.Id;
-                var item = new NativeMenuItem(p.Name) { ToggleType = NativeMenuItemToggleType.Radio, IsChecked = p.Id == active.Id };
+                var item = new NativeMenuItem(p.Name) { ToggleType = MenuItemToggleType.Radio, IsChecked = p.Id == active.Id };
                 item.Click += (_, _) => profiles.SetActiveProfile(game, id);
                 profileMenu.Add(item);
             }
@@ -107,10 +107,10 @@ internal sealed class TrayController(
         menu.Add(new NativeMenuItem($"Modifier profile ({(game == GameId.Poe1 ? "PoE 1" : "PoE 2")})") { Menu = profileMenu });
         menu.Add(new NativeMenuItemSeparator());
 
-        var price = new NativeMenuItem("Price checking") { ToggleType = NativeMenuItemToggleType.CheckBox, IsChecked = s.General.PriceCheckEnabled };
+        var price = new NativeMenuItem("Price checking") { ToggleType = MenuItemToggleType.CheckBox, IsChecked = s.General.PriceCheckEnabled };
         price.Click += (_, _) => settings.Update(x => x.General.PriceCheckEnabled = !x.General.PriceCheckEnabled);
         menu.Add(price);
-        var maps = new NativeMenuItem("Map checking") { ToggleType = NativeMenuItemToggleType.CheckBox, IsChecked = s.General.MapCheckEnabled };
+        var maps = new NativeMenuItem("Map checking") { ToggleType = MenuItemToggleType.CheckBox, IsChecked = s.General.MapCheckEnabled };
         maps.Click += (_, _) => settings.Update(x => x.General.MapCheckEnabled = !x.General.MapCheckEnabled);
         menu.Add(maps);
         menu.Add(new NativeMenuItemSeparator());

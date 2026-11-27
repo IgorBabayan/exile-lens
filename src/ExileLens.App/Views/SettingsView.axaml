@@ -141,8 +141,7 @@
                      IsVisible="{Binding ShortcutError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
           <StackPanel Classes="row">
             <TextBlock Classes="label" Text="Active league" />
-            <AutoCompleteBox ItemsSource="{Binding LeagueOptions}" Text="{Binding League}" Width="260" FilterMode="Contains"
-                             Watermark="Current challenge league" />
+            <AutoCompleteBox ItemsSource="{Binding LeagueOptions}" Text="{Binding League}" Width="260" FilterMode="Contains" />
           </StackPanel>
         </StackPanel>
       </Border>
@@ -157,7 +156,7 @@
           </StackPanel>
           <StackPanel Classes="row">
             <TextBlock Classes="label" Text="Preferred currency" />
-            <TextBox Text="{Binding PreferredCurrency}" Width="220" Watermark="Game default" />
+            <TextBox Text="{Binding PreferredCurrency}" Width="220" PlaceholderText="Game default" />
           </StackPanel>
           <StackPanel Classes="row">
             <TextBlock Classes="label" Text="Listings to fetch" />
@@ -181,7 +180,7 @@
           <ToggleSwitch IsChecked="{Binding OnlineOnly}" OnContent="Only online sellers" OffContent="Only online sellers" />
           <StackPanel Classes="row">
             <TextBlock Classes="label" Text="poe.ninja proxy (optional)" />
-            <TextBox Text="{Binding NinjaBaseUrl}" Width="320" Watermark="https://poe.ninja" />
+            <TextBox Text="{Binding NinjaBaseUrl}" Width="320" PlaceholderText="https://poe.ninja" />
           </StackPanel>
         </StackPanel>
       </Border>

@@ -69,7 +69,7 @@
           <ToggleSwitch IsChecked="{Binding ShowSuggestedAction}" OnContent="Show suggested action" OffContent="Hide suggested action" />
           <StackPanel Orientation="Horizontal" Spacing="10">
             <TextBlock Text="Valuation currency" VerticalAlignment="Center" Width="190" />
-            <TextBox Text="{Binding ValuationCurrency}" Width="220" Watermark="Game default (Exalted / Chaos Orb)" />
+            <TextBox Text="{Binding ValuationCurrency}" Width="220" PlaceholderText="Game default (Exalted / Chaos Orb)" />
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="10">
             <TextBlock Text="Minimum trade value" VerticalAlignment="Center" Width="190" />

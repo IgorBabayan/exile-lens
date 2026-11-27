@@ -75,7 +75,7 @@
               </StackPanel>
             </CheckBox>
             <TextBox Grid.Column="1" Text="{Binding MinText}" Width="58" MinHeight="26" Padding="6,3" FontSize="12"
-                     Watermark="min" IsEnabled="{Binding Enabled}" ToolTip.Tip="Minimum value" />
+                     PlaceholderText="min" IsEnabled="{Binding Enabled}" ToolTip.Tip="Minimum value" />
           </Grid>
         </DataTemplate>
       </ItemsControl.ItemTemplate>
@@ -87,9 +87,9 @@
           <DataTemplate x:DataType="vm:FilterItemViewModel">
             <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,2">
               <CheckBox IsChecked="{Binding Enabled}" Content="{Binding Label}" />
-              <TextBox Grid.Column="1" Text="{Binding MinText}" Width="58" Padding="6,3" FontSize="12" Watermark="min"
+              <TextBox Grid.Column="1" Text="{Binding MinText}" Width="58" Padding="6,3" FontSize="12" PlaceholderText="min"
                        IsVisible="{Binding HasRange}" IsEnabled="{Binding Enabled}" />
-              <TextBox Grid.Column="2" Text="{Binding MaxText}" Width="58" Padding="6,3" FontSize="12" Watermark="max" Margin="6,0,0,0"
+              <TextBox Grid.Column="2" Text="{Binding MaxText}" Width="58" Padding="6,3" FontSize="12" PlaceholderText="max" Margin="6,0,0,0"
                        IsVisible="{Binding HasMax}" IsEnabled="{Binding Enabled}" />
             </Grid>
           </DataTemplate>
