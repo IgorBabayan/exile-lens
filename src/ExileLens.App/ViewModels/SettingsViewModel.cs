@@ -174,6 +174,10 @@ public sealed partial class SettingsViewModel : PageViewModel
     [RelayCommand]
     private void UseAccent(string hex) => AccentColor = hex;
 
+    public string PrefixColor { get => _settings.Current.Appearance.PrefixColor; set => SetColor(value, (s, v) => s.Appearance.PrefixColor = v); }
+
+    public string SuffixColor { get => _settings.Current.Appearance.SuffixColor; set => SetColor(value, (s, v) => s.Appearance.SuffixColor = v); }
+
     public double FontSize { get => _settings.Current.Appearance.FontSize; set => Set(s => s.Appearance.FontSize = Math.Round(Math.Clamp(value, 11, 17), 1)); }
 
     public double OverlayScale { get => _settings.Current.Appearance.OverlayScale; set => Set(s => s.Appearance.OverlayScale = Math.Round(Math.Clamp(value, 0.75, 1.6), 2)); }

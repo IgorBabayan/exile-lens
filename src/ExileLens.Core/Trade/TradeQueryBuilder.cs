@@ -15,7 +15,13 @@ public enum FilterKind
     Corrupted,
     Rarity,
     Name,
+
+    /// <summary>PoE 1 "Imbued Gem" yes/no (misc filter), used when the exact built-in support cannot be resolved.</summary>
+    Imbued,
 }
+
+/// <summary>A trade item that shares its base type with others and is told apart by a discriminator (transfigured gems).</summary>
+public sealed record TradeTypeVariant(string Type, string Discriminator);
 
 /// <summary>A user-toggleable search filter shown in the price-check overlay.</summary>
 public sealed class SearchFilter
@@ -31,6 +37,22 @@ public sealed class SearchFilter
     public double? RolledValue { get; init; }
     public bool? BoolValue { get; set; }
     public ModifierKind? ModifierKind { get; init; }
+
+    /// <summary>Prefix/suffix of a stat filter; known only from the advanced copy (null otherwise).</summary>
+    public AffixSlot? Slot { get; init; }
+
+    /// <summary>Option-valued stat (e.g. an imbued gem's support): searched by option, not by a min/max range.</summary>
+    public string? OptionId { get; init; }
+
+    private List<SearchFilter>? _extra;
+
+    /// <summary>
+    /// Further lines of the same hybrid affix (e.g. "#% increased Evasion Rating" + "#% increased Stun and Block Recovery").
+    /// They are one row in the overlay and are toggled with this filter, while each keeps its own minimum.
+    /// </summary>
+    public IReadOnlyList<SearchFilter> Extra => (IReadOnlyList<SearchFilter>?)_extra ?? [];
+
+    internal void AddExtra(SearchFilter line) => (_extra ??= new List<SearchFilter>(2)).Add(line);
 }
 
 /// <summary>Per-game layout of the official trade query (filter group names differ between PoE 1 and PoE 2).</summary>
@@ -44,7 +66,9 @@ public sealed record TradeFilterLayout(
     string? LinksKey,
     string MapGroup,
     string MapTierKey,
-    string? FoulbornGroup = null);
+    string? FoulbornGroup = null,
+    string? SynthesisedGroup = null,
+    string? ImbuedGroup = null);
 
 public interface ITradeQueryBuilder
 {
@@ -57,7 +81,8 @@ public sealed record TradeQueryOptions(
     double ModifierMinPercent = 90,
     bool EnableModifiersByDefault = true,
     TradeListingStatus Status = TradeListingStatus.InstantBuyout,
-    string? PriceOption = null);
+    string? PriceOption = null,
+    TradeTypeVariant? TypeVariant = null);
 
 public sealed class TradeQueryBuilder : ITradeQueryBuilder
 {
@@ -78,6 +103,12 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
         if (stats is not null && item.IsIdentified && item.Category is ItemCategory.Equipment or ItemCategory.Jewel or ItemCategory.Flask or ItemCategory.Charm or ItemCategory.Tablet or ItemCategory.Relic)
         {
             var mods = item.Modifiers;
+            var slots = item.HasAdvancedAffixInfo ? SlotsByLine(item) : null;
+
+            // Advanced copy: lines under one affix header share an AffixGroup. A hybrid affix (two stats under one
+            // header) becomes one row; the simple copy carries no grouping, so its lines stay separate.
+            SearchFilter? affixHead = null;
+            var affixHeadGroup = -1;
             for (var i = 0; i < mods.Count;)
             {
                 var mod = mods[i];
@@ -104,7 +135,7 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
                 // Unique rolls have narrow ranges and the price sits in the top of them: a percentage of the roll
                 // (e.g. 202 for a perfect 225) matches far cheaper copies, so uniques search from the rolled value.
                 double? min = rolled is { } r ? (isUnique ? r : RoundMin(r, options.ModifierMinPercent)) : null;
-                filters.Add(new SearchFilter
+                var filter = new SearchFilter
                 {
                     Key = $"stat:{i}",
                     Kind = FilterKind.Stat,
@@ -114,8 +145,21 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
                     RolledValue = rolled,
                     Min = min,
                     ModifierKind = mod.Kind,
+                    Slot = slots is not null ? slots[i] : null,
                     Enabled = !isUnique && options.EnableModifiersByDefault && mod.Kind != ModifierKind.Enchant,
-                });
+                };
+
+                if (item.HasAdvancedAffixInfo && affixHead is not null && mod.AffixGroup == affixHeadGroup)
+                {
+                    affixHead.AddExtra(filter);
+                }
+                else
+                {
+                    filters.Add(filter);
+                    affixHead = filter;
+                    affixHeadGroup = mod.AffixGroup;
+                }
+
                 i += lineCount;
             }
         }
@@ -124,14 +168,26 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
         {
             filters.Add(new SearchFilter { Key = "ilvl", Kind = FilterKind.ItemLevel, Label = "Item level", Min = ilvl, Enabled = false });
         }
-
-        if (item.Quality is { } q && q > 0)
+        else if (item.Category == ItemCategory.Corpse && item.ItemLevel is { } corpseLevel)
         {
-            filters.Add(new SearchFilter
-            {
-                Key = "quality", Kind = FilterKind.Quality, Label = "Quality", Min = q,
-                Enabled = item.Category == ItemCategory.Gem,
-            });
+            // A corpse's item level is its corpse level, which drives its value.
+            filters.Add(new SearchFilter { Key = "ilvl", Kind = FilterKind.ItemLevel, Label = "Corpse level", Min = corpseLevel, Enabled = true });
+        }
+
+        var isGem = item.Category == ItemCategory.Gem;
+        if (isGem)
+        {
+            // Gems always get both fields: level and quality drive the price far more than anything else on them.
+            // A missing "Level:" line means level 1; a missing "Quality:" line means 0% (searched only when enabled).
+            var gemLevel = item.GemLevel ?? 1;
+            var gemQuality = item.Quality ?? 0;
+            filters.Add(new SearchFilter { Key = "gem_level", Kind = FilterKind.GemLevel, Label = "Gem level", Min = gemLevel, Enabled = true });
+            filters.Add(new SearchFilter { Key = "quality", Kind = FilterKind.Quality, Label = "Quality", Min = gemQuality, Enabled = gemQuality > 0 });
+            AddImbuedFilter(filters, item, stats, options.Layout);
+        }
+        else if (item.Quality is { } q && q > 0)
+        {
+            filters.Add(new SearchFilter { Key = "quality", Kind = FilterKind.Quality, Label = "Quality", Min = q, Enabled = false });
         }
 
         if (item.Sockets.Count > 0)
@@ -143,7 +199,7 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
             }
         }
 
-        if (item.GemLevel is { } gl)
+        if (!isGem && item.GemLevel is { } gl)
         {
             filters.Add(new SearchFilter { Key = "gem_level", Kind = FilterKind.GemLevel, Label = "Gem level", Min = gl, Enabled = true });
         }
@@ -160,6 +216,56 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
         });
 
         return filters;
+    }
+
+    /// <summary>
+    /// PoE 1 imbued gems ("Supported by Level 1 Lifetap") are priced by their support: the exact support is searched
+    /// when the trade stats know it, otherwise any imbued gem. A corrupted gem without one excludes imbued copies.
+    /// </summary>
+    private static void AddImbuedFilter(List<SearchFilter> filters, ParsedItem item, StatIndex? stats, TradeFilterLayout layout)
+    {
+        if (item.ImbuedSupport is { } support)
+        {
+            if (stats is not null && stats.TryResolveImbuedSupport(support, out var option))
+            {
+                filters.Add(new SearchFilter
+                {
+                    Key = "imbued_support", Kind = FilterKind.Stat, Label = $"Supported by {support}",
+                    StatId = option.StatId, OptionId = option.OptionId, Enabled = true,
+                });
+            }
+            else if (layout.ImbuedGroup is not null)
+            {
+                filters.Add(new SearchFilter { Key = "imbued", Kind = FilterKind.Imbued, Label = $"Imbued ({support})", BoolValue = true, Enabled = true });
+            }
+        }
+        else if (item.IsCorrupted && layout.ImbuedGroup is not null)
+        {
+            filters.Add(new SearchFilter { Key = "imbued", Kind = FilterKind.Imbued, Label = "Not imbued", BoolValue = false, Enabled = true });
+        }
+    }
+
+    /// <summary>Prefix/suffix of every modifier line, from the advanced-copy affix headers (one array, no per-line lookups).</summary>
+    private static AffixSlot?[] SlotsByLine(ParsedItem item)
+    {
+        var slots = new AffixSlot?[item.Modifiers.Count];
+        foreach (var affix in item.Affixes)
+        {
+            if (affix.Slot is not (AffixSlot.Prefix or AffixSlot.Suffix))
+            {
+                continue;
+            }
+
+            foreach (var line in affix.LineIndexes)
+            {
+                if ((uint)line < (uint)slots.Length)
+                {
+                    slots[line] = affix.Slot;
+                }
+            }
+        }
+
+        return slots;
     }
 
     public JsonObject Build(ParsedItem item, IReadOnlyList<SearchFilter> filters, TradeQueryOptions options)
@@ -181,6 +287,12 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
             query["type"] = item.BaseType;
         }
 
+        // Transfigured gems ("Arc of Oscillating") are unknown as a type: the trade API wants base + discriminator.
+        if (item.Category == ItemCategory.Gem && options.TypeVariant is { } variant)
+        {
+            query["type"] = new JsonObject { ["option"] = variant.Type, ["discriminator"] = variant.Discriminator };
+        }
+
         var groups = new Dictionary<string, JsonObject>(StringComparer.Ordinal);
         JsonObject Group(string name)
         {
@@ -199,9 +311,15 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
         }
 
         // Foulborn and regular copies of a unique share a name but not a price: always pin the variant.
+        // The live PoE 1 trade data lists the Foulborn filter as misc_filters "mutated" (the old "foulborn_item" is ignored).
         if (layout.FoulbornGroup is { } foulbornGroup && item.Rarity == ItemRarity.Unique && item.Name is not null)
         {
-            Group(foulbornGroup)["foulborn_item"] = new JsonObject { ["option"] = item.IsFoulborn ? "true" : "false" };
+            Group(foulbornGroup)["mutated"] = new JsonObject { ["option"] = item.IsFoulborn ? "true" : "false" };
+        }
+
+        if (layout.SynthesisedGroup is { } synthesisedGroup && item.IsSynthesised)
+        {
+            Group(synthesisedGroup)["synthesised_item"] = new JsonObject { ["option"] = "true" };
         }
 
         if (options.PriceOption is { } priceOption)
@@ -220,23 +338,28 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
             switch (f.Kind)
             {
                 case FilterKind.Stat when f.StatId is not null:
-                    var sf = new JsonObject { ["id"] = f.StatId };
-                    var range = Range(f.Min, f.Max);
-                    if (range is not null)
+                    // JsonNode-typed Add: the generic Add<T> is not trim/AOT safe.
+                    statFilters.Add((JsonNode)StatNode(f));
+                    foreach (var line in f.Extra)
                     {
-                        sf["value"] = range;
+                        if (line.StatId is not null)
+                        {
+                            statFilters.Add((JsonNode)StatNode(line));
+                        }
                     }
 
-                    statFilters.Add((JsonNode)sf);
+                    break;
+                case FilterKind.Imbued when layout.ImbuedGroup is { } imbuedGroup:
+                    Group(imbuedGroup)["gem_imbued"] = new JsonObject { ["option"] = f.BoolValue == true ? "true" : "false" };
                     break;
                 case FilterKind.ItemLevel:
                     Group(layout.ItemLevelGroup)["ilvl"] = Range(f.Min, f.Max);
                     break;
-                case FilterKind.Quality:
-                    Group(layout.QualityGroup)["quality"] = Range(f.Min, f.Max);
+                case FilterKind.Quality when Range(f.Min, f.Max) is { } quality:
+                    Group(layout.QualityGroup)["quality"] = quality;
                     break;
-                case FilterKind.GemLevel:
-                    Group(layout.GemLevelGroup)["gem_level"] = Range(f.Min, f.Max);
+                case FilterKind.GemLevel when Range(f.Min, f.Max) is { } gemLevel:
+                    Group(layout.GemLevelGroup)["gem_level"] = gemLevel;
                     break;
                 case FilterKind.Sockets:
                     Group(layout.SocketGroup)[layout.SocketKey] = Range(f.Min, f.Max);
@@ -271,6 +394,26 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
             ["query"] = query,
             ["sort"] = new JsonObject { ["price"] = "asc" },
         };
+    }
+
+    private static JsonObject StatNode(SearchFilter f)
+    {
+        var node = new JsonObject { ["id"] = f.StatId };
+        if (f.OptionId is { } optionId)
+        {
+            node["value"] = new JsonObject
+            {
+                ["option"] = long.TryParse(optionId, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var n)
+                    ? JsonValue.Create(n)
+                    : JsonValue.Create(optionId),
+            };
+        }
+        else if (Range(f.Min, f.Max) is { } range)
+        {
+            node["value"] = range;
+        }
+
+        return node;
     }
 
     private static string JoinLines(IReadOnlyList<ItemModifier> mods, int start, int count)

@@ -61,6 +61,16 @@
       <SolidColorBrush x:Key="RarityGemBrush" Color="#1A8C86" />
       <Color x:Key="RarityCurrencyColor">#8A7A55</Color>
       <SolidColorBrush x:Key="RarityCurrencyBrush" Color="#8A7A55" />
+      <!-- Modifier origins (in-game tooltip colors, darkened for contrast on light surfaces) -->
+      <Color x:Key="ModFracturedColor">#7D6B3B</Color>
+      <SolidColorBrush x:Key="ModFracturedBrush" Color="#7D6B3B" />
+      <Color x:Key="ModCraftedColor">#5A5AC8</Color>
+      <SolidColorBrush x:Key="ModCraftedBrush" Color="#5A5AC8" />
+      <Color x:Key="ModFoulbornColor">#A8126C</Color>
+      <SolidColorBrush x:Key="ModFoulbornBrush" Color="#A8126C" />
+      <!-- Prefix/suffix defaults; replaced at startup from the settings (darkened for light surfaces). -->
+      <SolidColorBrush x:Key="ModPrefixBrush" Color="#4A4AC0" />
+      <SolidColorBrush x:Key="ModSuffixBrush" Color="#2F7F96" />
     </ResourceDictionary>
     <ResourceDictionary x:Key="Dark">
       <Color x:Key="AppBackgroundColor">#262624</Color>
@@ -117,6 +127,16 @@
       <SolidColorBrush x:Key="RarityGemBrush" Color="#37BDB5" />
       <Color x:Key="RarityCurrencyColor">#C4B48C</Color>
       <SolidColorBrush x:Key="RarityCurrencyBrush" Color="#C4B48C" />
+      <!-- Modifier origins (in-game tooltip colors) -->
+      <Color x:Key="ModFracturedColor">#A29162</Color>
+      <SolidColorBrush x:Key="ModFracturedBrush" Color="#A29162" />
+      <Color x:Key="ModCraftedColor">#B4B4FF</Color>
+      <SolidColorBrush x:Key="ModCraftedBrush" Color="#B4B4FF" />
+      <Color x:Key="ModFoulbornColor">#CD1684</Color>
+      <SolidColorBrush x:Key="ModFoulbornBrush" Color="#CD1684" />
+      <!-- Prefix/suffix defaults; replaced at startup from the settings. -->
+      <SolidColorBrush x:Key="ModPrefixBrush" Color="#8888FF" />
+      <SolidColorBrush x:Key="ModSuffixBrush" Color="#6FC8E0" />
     </ResourceDictionary>
   </ResourceDictionary.ThemeDictionaries>
 

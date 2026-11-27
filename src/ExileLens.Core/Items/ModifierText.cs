@@ -21,22 +21,46 @@ public static class ModifierText
         (" (desecrated)", ModifierKind.Desecrated),
         (" (scourge)", ModifierKind.Scourge),
         (" (crucible)", ModifierKind.Crucible),
+        (" (mutated)", ModifierKind.Mutated),
     ];
 
-    /// <summary>Strips a trailing kind marker such as " (implicit)" and reports the kind.</summary>
+    /// <summary>PoE 1 advanced copy marks fixed (non-rolling) lines: "Damage cannot be Reflected — Unscalable Value".</summary>
+    private const string UnscalableMarker = "Unscalable Value";
+
+    /// <summary>
+    /// Strips a trailing kind marker such as " (implicit)" and reports the kind. The advanced-copy
+    /// " — Unscalable Value" note is removed too (before or after the kind marker), so fixed lines still match trade stats.
+    /// </summary>
     public static ReadOnlySpan<char> StripKindSuffix(ReadOnlySpan<char> line, out ModifierKind kind, ModifierKind fallback = ModifierKind.Explicit)
     {
-        line = line.TrimEnd();
+        line = StripUnscalable(line.TrimEnd());
         foreach (var (suffix, k) in KindSuffixes)
         {
             if (line.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
             {
                 kind = k;
-                return line[..^suffix.Length].TrimEnd();
+                return StripUnscalable(line[..^suffix.Length].TrimEnd());
             }
         }
 
         kind = fallback;
+        return line;
+    }
+
+    /// <summary>"X — Unscalable Value" → "X". Allocation-free; lines without the marker are returned unchanged.</summary>
+    public static ReadOnlySpan<char> StripUnscalable(ReadOnlySpan<char> line)
+    {
+        if (!line.EndsWith(UnscalableMarker, StringComparison.Ordinal))
+        {
+            return line;
+        }
+
+        var rest = line[..^UnscalableMarker.Length].TrimEnd();
+        if (rest.Length > 0 && rest[^1] is '—' or '–' or '-')
+        {
+            return rest[..^1].TrimEnd();
+        }
+
         return line;
     }
 

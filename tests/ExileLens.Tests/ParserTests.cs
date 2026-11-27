@@ -32,6 +32,33 @@ public sealed class ParserTests
     }
 
     [TestMethod]
+    public void GemTagLineDoesNotHideLevelAndQuality()
+    {
+        var item = Fixture.Parse("poe1/war-banner-gem.txt", GameId.Poe1);
+
+        Assert.AreEqual(ItemRarity.Gem, item.Rarity);
+        Assert.AreEqual(ItemCategory.Gem, item.Category);
+        Assert.AreEqual("War Banner", item.BaseType);
+        Assert.AreEqual(12, item.GemLevel);
+        Assert.AreEqual(17, item.Quality);
+        Assert.AreEqual(52, item.RequiredLevel, "requirement level must not overwrite the gem level");
+        Assert.IsTrue(item.IsCorrupted);
+        Assert.IsFalse(item.Modifiers.Any(m => m.Text.StartsWith("Level", StringComparison.Ordinal)), "gem properties are not modifiers");
+    }
+
+    [TestMethod]
+    public void ImbuedGemSupportIsParsedAndNotAModifier()
+    {
+        var item = Fixture.Parse("poe1/imbued-transfigured-gem.txt", GameId.Poe1);
+
+        Assert.AreEqual("Arc of Oscillating", item.BaseType);
+        Assert.AreEqual("Lifetap", item.ImbuedSupport);
+        Assert.AreEqual(20, item.GemLevel);
+        Assert.AreEqual(20, item.Quality);
+        Assert.IsFalse(item.Modifiers.Any(m => m.Text.StartsWith("Supported by", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
     public void SimpleCopyEstimatesAffixCountFromLines()
     {
         var item = Fixture.Parse("poe2/rare-ring-simple.txt", GameId.Poe2);

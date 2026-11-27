@@ -11,6 +11,9 @@ using Microsoft.Extensions.Logging;
 
 namespace ExileLens.Infrastructure.Trade;
 
+/// <summary>The two compact maps kept from the trade item list.</summary>
+internal sealed record TradeItemData(IReadOnlyDictionary<string, string[]> Uniques, IReadOnlyDictionary<string, TradeTypeVariant> Gems);
+
 /// <summary>
 /// League list and trade stat definitions. Stats (~1 MB) are cached on disk per game and refreshed at most
 /// once a day; the cached copy keeps price checks working offline or when the endpoint is rate limited.
@@ -23,10 +26,11 @@ public sealed class TradeDataProvider(HttpClient http, RateLimiter limiter, IApp
     private static readonly TimeSpan UniquesMaxAge = TimeSpan.FromHours(24);
     private static readonly IReadOnlyDictionary<string, string> NoIcons = FrozenDictionary<string, string>.Empty;
     private static readonly IReadOnlyDictionary<string, string[]> NoUniques = FrozenDictionary<string, string[]>.Empty;
+    private static readonly IReadOnlyDictionary<string, TradeTypeVariant> NoGems = FrozenDictionary<string, TradeTypeVariant>.Empty;
     private const string ImageHost = "https://web.poecdn.com";
     private readonly ConcurrentDictionary<GameId, Lazy<Task<StatIndex?>>> _stats = new();
     private readonly ConcurrentDictionary<GameId, Lazy<Task<IReadOnlyDictionary<string, string>>>> _currencyIcons = new();
-    private readonly ConcurrentDictionary<GameId, Lazy<Task<IReadOnlyDictionary<string, string[]>>>> _uniques = new();
+    private readonly ConcurrentDictionary<GameId, Lazy<Task<TradeItemData>>> _items = new();
 
     public async Task<IReadOnlyList<LeagueInfo>> GetLeaguesAsync(IGameModule game, CancellationToken cancellationToken)
     {
@@ -160,23 +164,34 @@ public sealed class TradeDataProvider(HttpClient http, RateLimiter limiter, IApp
         return NoIcons;
     }
 
-    public Task<IReadOnlyDictionary<string, string[]>> GetUniquesByBaseAsync(IGameModule game, CancellationToken cancellationToken)
+    public async Task<IReadOnlyDictionary<string, string[]>> GetUniquesByBaseAsync(IGameModule game, CancellationToken cancellationToken) =>
+        (await GetItemDataAsync(game, cancellationToken).ConfigureAwait(false)).Uniques;
+
+    public async Task<IReadOnlyDictionary<string, TradeTypeVariant>> GetGemVariantsAsync(IGameModule game, CancellationToken cancellationToken) =>
+        (await GetItemDataAsync(game, cancellationToken).ConfigureAwait(false)).Gems;
+
+    private Task<TradeItemData> GetItemDataAsync(IGameModule game, CancellationToken cancellationToken)
     {
-        var lazy = _uniques.GetOrAdd(game.Game, _ => new Lazy<Task<IReadOnlyDictionary<string, string[]>>>(() => LoadUniquesAsync(game)));
+        var lazy = _items.GetOrAdd(game.Game, _ => new Lazy<Task<TradeItemData>>(() => LoadItemDataAsync(game)));
         return lazy.Value.WaitAsync(cancellationToken);
     }
 
     /// <summary>
-    /// The trade item list is large (every base and unique), so only the compact base → unique names map is kept on
-    /// disk; later starts read a few dozen KB and the endpoint is hit at most once a day.
+    /// The trade item list is large (every base and unique), so it is downloaded at most once a day and only two compact
+    /// maps are kept on disk: base → unique names and transfigured gem → base + discriminator (a few dozen KB together).
     /// </summary>
-    private async Task<IReadOnlyDictionary<string, string[]>> LoadUniquesAsync(IGameModule game)
+    private async Task<TradeItemData> LoadItemDataAsync(IGameModule game)
     {
-        var cachePath = Path.Combine(paths.CacheDirectory, $"trade-uniques-{game.NinjaSegment}.json");
-        if (File.Exists(cachePath) && time.GetUtcNow() - File.GetLastWriteTimeUtc(cachePath) < UniquesMaxAge
-            && await ReadUniquesCacheAsync(cachePath).ConfigureAwait(false) is { Count: > 0 } cached)
+        var uniquesPath = Path.Combine(paths.CacheDirectory, $"trade-uniques-{game.NinjaSegment}.json");
+        // "v2": the first release could write an empty map that would otherwise be trusted for a day.
+        var gemsPath = Path.Combine(paths.CacheDirectory, $"trade-gems-v2-{game.NinjaSegment}.json");
+        var now = time.GetUtcNow();
+        if (File.Exists(uniquesPath) && now - File.GetLastWriteTimeUtc(uniquesPath) < UniquesMaxAge
+            && File.Exists(gemsPath) && now - File.GetLastWriteTimeUtc(gemsPath) < UniquesMaxAge
+            && await ReadUniquesCacheAsync(uniquesPath).ConfigureAwait(false) is { Count: > 0 } cachedUniques
+            && await ReadGemsCacheAsync(gemsPath).ConfigureAwait(false) is { } cachedGems)
         {
-            return cached;
+            return new TradeItemData(cachedUniques, cachedGems);
         }
 
         try
@@ -190,31 +205,88 @@ public sealed class TradeDataProvider(HttpClient http, RateLimiter limiter, IApp
             {
                 await using var stream = await response.Content.ReadAsStreamAsync(cts.Token).ConfigureAwait(false);
                 using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: cts.Token).ConfigureAwait(false);
-                var uniques = ParseUniques(doc.RootElement);
-                if (uniques.Count > 0)
+                var data = ParseItems(doc.RootElement);
+                if (data.Uniques.Count > 0)
                 {
-                    await WriteUniquesCacheAsync(cachePath, uniques).ConfigureAwait(false);
-                    return uniques;
+                    await WriteUniquesCacheAsync(uniquesPath, data.Uniques).ConfigureAwait(false);
+                    await WriteGemsCacheAsync(gemsPath, data.Gems).ConfigureAwait(false);
+                    return data;
                 }
             }
             else
             {
-                logger.LogWarning("Trade item data returned {Status}; using cached uniques if present", (int)response.StatusCode);
+                logger.LogWarning("Trade item data returned {Status}; using cached item data if present", (int)response.StatusCode);
             }
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or TradeRateLimitedException or IOException or JsonException)
         {
-            logger.LogWarning(ex, "Trade item data refresh failed; using cached uniques if present");
+            logger.LogWarning(ex, "Trade item data refresh failed; using cached item data if present");
         }
 
-        var stale = File.Exists(cachePath) ? await ReadUniquesCacheAsync(cachePath).ConfigureAwait(false) : null;
-        if (stale is { Count: > 0 })
+        // Stale cache beats nothing.
+        var staleUniques = File.Exists(uniquesPath) ? await ReadUniquesCacheAsync(uniquesPath).ConfigureAwait(false) : null;
+        var staleGems = File.Exists(gemsPath) ? await ReadGemsCacheAsync(gemsPath).ConfigureAwait(false) : null;
+        if (staleUniques is { Count: > 0 })
         {
-            return stale;
+            return new TradeItemData(staleUniques, staleGems ?? NoGems);
         }
 
-        _uniques.TryRemove(game.Game, out _); // allow a later retry
-        return NoUniques;
+        _items.TryRemove(game.Game, out _); // allow a later retry
+        return new TradeItemData(NoUniques, staleGems ?? NoGems);
+    }
+
+    private async Task<IReadOnlyDictionary<string, TradeTypeVariant>?> ReadGemsCacheAsync(string path)
+    {
+        try
+        {
+            await using var stream = File.OpenRead(path);
+            using var doc = await JsonDocument.ParseAsync(stream).ConfigureAwait(false);
+            var map = new Dictionary<string, TradeTypeVariant>(StringComparer.OrdinalIgnoreCase);
+            foreach (var p in doc.RootElement.EnumerateObject())
+            {
+                if (p.Value.ValueKind == JsonValueKind.Array && p.Value.GetArrayLength() == 2
+                    && p.Value[0].GetString() is { Length: > 0 } type && p.Value[1].GetString() is { Length: > 0 } disc)
+                {
+                    map[p.Name] = new TradeTypeVariant(type, disc);
+                }
+            }
+
+            return map.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException)
+        {
+            logger.LogDebug(ex, "Cached gem variants unreadable");
+            return null;
+        }
+    }
+
+    private async Task WriteGemsCacheAsync(string path, IReadOnlyDictionary<string, TradeTypeVariant> gems)
+    {
+        var temp = $"{path}.{Environment.ProcessId}.tmp";
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            await using (var stream = File.Create(temp))
+            await using (var writer = new Utf8JsonWriter(stream))
+            {
+                writer.WriteStartObject();
+                foreach (var (name, variant) in gems)
+                {
+                    writer.WriteStartArray(name);
+                    writer.WriteStringValue(variant.Type);
+                    writer.WriteStringValue(variant.Discriminator);
+                    writer.WriteEndArray();
+                }
+
+                writer.WriteEndObject();
+            }
+
+            File.Move(temp, path, overwrite: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            logger.LogDebug(ex, "Could not cache gem variants on disk");
+        }
     }
 
     private async Task<IReadOnlyDictionary<string, string[]>?> ReadUniquesCacheAsync(string path)
@@ -288,18 +360,25 @@ public sealed class TradeDataProvider(HttpClient http, RateLimiter limiter, IApp
         }
     }
 
+    /// <summary>Unique names per base from the trade item list (see <see cref="ParseItems"/>).</summary>
+    internal static IReadOnlyDictionary<string, string[]> ParseUniques(JsonElement root) => ParseItems(root).Uniques;
+
     /// <summary>
-    /// Reads the unique entries ({"name", "type", "flags": {"unique": true}}) of the trade item list. Variants of one
-    /// unique (legacy versions, "disc" discriminators) share a name and are listed once.
+    /// One pass over the trade item list:
+    /// unique entries ({"name", "type", "flags": {"unique": true}}) → base → unique names (variants of one unique, legacy
+    /// versions or "disc" discriminators, share a name and are listed once);
+    /// entries "&lt;base&gt; of &lt;variant&gt;" with a discriminator ({"type": "Arc", "text": "Arc of Oscillating", "disc": "alt_y"})
+    /// → transfigured gems.
     /// </summary>
-    internal static IReadOnlyDictionary<string, string[]> ParseUniques(JsonElement root)
+    internal static TradeItemData ParseItems(JsonElement root)
     {
         if (!root.TryGetProperty("result", out var groups) || groups.ValueKind != JsonValueKind.Array)
         {
-            return NoUniques;
+            return new TradeItemData(NoUniques, NoGems);
         }
 
         var sets = new Dictionary<string, SortedSet<string>>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, TradeTypeVariant>? gems = null;
         foreach (var group in groups.EnumerateArray())
         {
             if (!group.TryGetProperty("entries", out var entries) || entries.ValueKind != JsonValueKind.Array)
@@ -309,10 +388,26 @@ public sealed class TradeDataProvider(HttpClient http, RateLimiter limiter, IApp
 
             foreach (var e in entries.EnumerateArray())
             {
+                if (!e.TryGetProperty("type", out var typeEl) || typeEl.GetString() is not { Length: > 0 } type)
+                {
+                    continue;
+                }
+
+                // Transfigured gem: "<base> of <variant>" with a discriminator. Recognised by shape, not by the group id,
+                // which is not a stable contract of the endpoint.
+                if (e.TryGetProperty("disc", out var discEl) && discEl.GetString() is { Length: > 0 } disc
+                    && !e.TryGetProperty("name", out _)
+                    && e.TryGetProperty("text", out var textEl) && textEl.GetString() is { } text
+                    && text.Length > type.Length + 4 && text.StartsWith(type, StringComparison.Ordinal)
+                    && text.AsSpan(type.Length).StartsWith(" of ", StringComparison.Ordinal))
+                {
+                    (gems ??= new Dictionary<string, TradeTypeVariant>(StringComparer.OrdinalIgnoreCase)).TryAdd(text, new TradeTypeVariant(type, disc));
+                    continue;
+                }
+
                 if (!e.TryGetProperty("flags", out var flags) || flags.ValueKind != JsonValueKind.Object
                     || !flags.TryGetProperty("unique", out var unique) || unique.ValueKind != JsonValueKind.True
-                    || !e.TryGetProperty("name", out var nameEl) || nameEl.GetString() is not { Length: > 0 } name
-                    || !e.TryGetProperty("type", out var typeEl) || typeEl.GetString() is not { Length: > 0 } type)
+                    || !e.TryGetProperty("name", out var nameEl) || nameEl.GetString() is not { Length: > 0 } name)
                 {
                     continue;
                 }
@@ -333,7 +428,9 @@ public sealed class TradeDataProvider(HttpClient http, RateLimiter limiter, IApp
             map[type] = [.. names];
         }
 
-        return map.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+        return new TradeItemData(
+            map.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase),
+            gems?.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase) ?? NoGems);
     }
 
     private async Task<IReadOnlyDictionary<string, string>?> ReadIconCacheAsync(string path)
@@ -471,6 +568,23 @@ public sealed class TradeDataProvider(HttpClient http, RateLimiter limiter, IApp
                 // Multi-line stats stay whole: StatIndex matches them against consecutive item lines.
                 type ??= id.Split('.')[0];
                 yield return new TradeStat(id, text, type);
+
+                // Imbued gem supports are one option stat ("Supported by Level 1 #" + one option per support):
+                // each option is listed on its own so the support named on the gem resolves to (stat id, option id).
+                if (id.StartsWith(StatIndex.ImbuedType + ".", StringComparison.Ordinal)
+                    && e.TryGetProperty("option", out var optionEl) && optionEl.ValueKind == JsonValueKind.Object
+                    && optionEl.TryGetProperty("options", out var options) && options.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var o in options.EnumerateArray())
+                    {
+                        if (o.TryGetProperty("id", out var oid) && oid.ValueKind is JsonValueKind.Number or JsonValueKind.String
+                            && o.TryGetProperty("text", out var ot) && ot.GetString() is { Length: > 0 } optionText)
+                        {
+                            var optionId = oid.ValueKind == JsonValueKind.String ? oid.GetString()! : oid.GetRawText();
+                            yield return new TradeStat(id, optionText, StatIndex.ImbuedType, optionId);
+                        }
+                    }
+                }
             }
         }
     }

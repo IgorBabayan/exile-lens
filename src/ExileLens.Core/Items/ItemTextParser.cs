@@ -17,6 +17,12 @@ public sealed class ItemTextParser : IItemParser
 {
     private const string Separator = "--------";
 
+    /// <summary>PoE 1 synthesised items carry this prefix on the base line; the trade API only knows the plain base.</summary>
+    private const string SynthesisedPrefix = "Synthesised ";
+
+    /// <summary>PoE 1 imbued gem line: "Supported by Level 1 Lifetap".</summary>
+    private const string ImbuedPrefix = "Supported by Level ";
+
     private static readonly string[] DescriptionPrefixes =
     [
         "Right click", "Place into", "Travel to this", "Can be used in", "Stack Size", "Shift click",
@@ -101,6 +107,7 @@ public sealed class ItemTextParser : IItemParser
         var unparsed = new List<string>();
         var influences = new List<string>();
         int? itemLevel = null, quality = null, gemLevel = null, mapTier = null, stack = null, maxStack = null, reqLevel = null;
+        string? imbuedSupport = null;
         bool corrupted = false, identified = true, mirrored = false, fractured = false, synthesised = false, advanced = false;
         var sockets = SocketInfo.None;
         var modifierSectionCount = 0;
@@ -149,6 +156,12 @@ public sealed class ItemTextParser : IItemParser
                 continue;
             }
 
+            if (rarity == ItemRarity.Gem && section.Count == 1 && TryParseImbuedSupport(first) is { } support)
+            {
+                imbuedSupport = support;
+                continue;
+            }
+
             if (Array.Exists(InfluenceLines, l => section.Contains(l)))
             {
                 foreach (var l in section)
@@ -178,13 +191,21 @@ public sealed class ItemTextParser : IItemParser
                 }
             }
 
-            if (isPropertySection)
+            // Gem property blocks open with a tag line ("Aura, Banner, Spell, AoE, Duration") and may carry free-text
+            // lines between "Key: value" pairs; the first block before any modifiers is still the property block.
+            var lenientGemSection = !isPropertySection && rarity == ItemRarity.Gem && modifierSectionCount == 0 && HasPropertyLine(section);
+            if (isPropertySection || lenientGemSection)
             {
                 foreach (var line in section)
                 {
                     if (line == "Requirements:")
                     {
                         inRequirements = true;
+                        continue;
+                    }
+
+                    if (lenientGemSection && !LooksLikeProperty(line))
+                    {
                         continue;
                     }
 
@@ -291,6 +312,13 @@ public sealed class ItemTextParser : IItemParser
             modifiers.RemoveRange(lastModSectionStart, modifiers.Count - lastModSectionStart);
         }
 
+        // "Synthesised Harmonic Spirit Shield" → "Harmonic Spirit Shield" (the trade API rejects the prefixed base).
+        if (baseType.Length > SynthesisedPrefix.Length && baseType.StartsWith(SynthesisedPrefix, StringComparison.Ordinal))
+        {
+            baseType = baseType[SynthesisedPrefix.Length..];
+            synthesised = true;
+        }
+
         var category = DetectCategory(itemClass, baseType, rarity);
 
         if (rarity == ItemRarity.Unknown)
@@ -317,6 +345,7 @@ public sealed class ItemTextParser : IItemParser
             ItemLevel = itemLevel,
             Quality = quality,
             GemLevel = gemLevel,
+            ImbuedSupport = imbuedSupport,
             MapTier = mapTier ?? ParseTierFromBase(baseType),
             StackSize = stack,
             MaxStackSize = maxStack,
@@ -439,6 +468,12 @@ public sealed class ItemTextParser : IItemParser
             return ItemCategory.Fragment;
         }
 
+        // "Corpses" copy as Rarity: Currency but are single trade items, not exchange currency.
+        if (cls.Contains("Corpse", StringComparison.OrdinalIgnoreCase))
+        {
+            return ItemCategory.Corpse;
+        }
+
         var isStackable = cls.Contains("Currency", StringComparison.OrdinalIgnoreCase) || cls.Contains("Socketable", StringComparison.OrdinalIgnoreCase)
                           || cls.Contains("Omen", StringComparison.OrdinalIgnoreCase) || rarity == ItemRarity.Currency;
         if (isStackable)
@@ -481,6 +516,44 @@ public sealed class ItemTextParser : IItemParser
         foreach (var prefix in DescriptionPrefixes)
         {
             if (section[0].StartsWith(prefix, StringComparison.Ordinal) && !section[0].StartsWith("Stack Size:", StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>"Supported by Level 1 Lifetap" → "Lifetap"; null for any other line.</summary>
+    private static string? TryParseImbuedSupport(string line)
+    {
+        if (!line.StartsWith(ImbuedPrefix, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var rest = line.AsSpan(ImbuedPrefix.Length);
+        var digits = 0;
+        while (digits < rest.Length && char.IsAsciiDigit(rest[digits]))
+        {
+            digits++;
+        }
+
+        if (digits == 0 || digits >= rest.Length || rest[digits] != ' ')
+        {
+            return null;
+        }
+
+        // The game may separate the name with a zero-width space.
+        var name = rest[(digits + 1)..].Trim().Trim('\u200B');
+        return name.IsEmpty ? null : name.ToString();
+    }
+
+    private static bool HasPropertyLine(List<string> section)
+    {
+        foreach (var line in section)
+        {
+            if (LooksLikeProperty(line))
             {
                 return true;
             }
@@ -543,6 +616,10 @@ public sealed class ItemTextParser : IItemParser
         else if (inner.StartsWith("Desecrated", StringComparison.Ordinal))
         {
             kind = ModifierKind.Desecrated;
+        }
+        else if (inner.StartsWith("Foulborn", StringComparison.Ordinal))
+        {
+            kind = ModifierKind.Mutated;
         }
 
         name = null;

@@ -55,6 +55,13 @@ public interface ITradeDataProvider
     /// </summary>
     Task<IReadOnlyDictionary<string, string[]>> GetUniquesByBaseAsync(IGameModule game, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyDictionary<string, string[]>>(new Dictionary<string, string[]>());
+
+    /// <summary>
+    /// Transfigured gem name (case-insensitive, e.g. "Arc of Oscillating") to the base + discriminator the trade API
+    /// searches it by. Empty when unavailable or for games without transfigured gems; never throws for network errors.
+    /// </summary>
+    Task<IReadOnlyDictionary<string, TradeTypeVariant>> GetGemVariantsAsync(IGameModule game, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyDictionary<string, TradeTypeVariant>>(new Dictionary<string, TradeTypeVariant>());
 }
 
 public interface IMarketDataProvider
@@ -67,6 +74,13 @@ public interface IMarketDataProvider
 
     /// <summary>Icon URL for a bulk item from already-downloaded data only. Never touches the network.</summary>
     string? GetCachedIconUrl(IGameModule game, string league, string name) => null;
+
+    /// <summary>
+    /// Unique name (case-insensitive) to icon URL for the unique group the item belongs to (weapons, armours, jewels...).
+    /// Empty when unknown; never throws for network errors.
+    /// </summary>
+    Task<IReadOnlyDictionary<string, string>> GetUniqueIconsAsync(IGameModule game, string league, ParsedItem item, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyDictionary<string, string>>(new Dictionary<string, string>());
 }
 
 public interface ICurrencyConversionService

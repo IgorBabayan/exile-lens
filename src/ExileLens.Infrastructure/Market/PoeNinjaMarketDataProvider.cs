@@ -1,10 +1,12 @@
 using System.Collections.Concurrent;
+using System.Collections.Frozen;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using ExileLens.Application.Games;
 using ExileLens.Application.Market;
 using ExileLens.Application.Settings;
+using ExileLens.Application.Storage;
 using ExileLens.Core.Economy;
 using ExileLens.Core.Items;
 using Microsoft.Extensions.Logging;
@@ -17,11 +19,29 @@ namespace ExileLens.Infrastructure.Market;
 /// The base URL is configurable so a self-hosted caching proxy can be used, as poe.ninja recommends for
 /// widely distributed desktop clients.
 /// </summary>
-public sealed class PoeNinjaMarketDataProvider(HttpClient http, ISettingsService settings, TimeProvider time, ILogger<PoeNinjaMarketDataProvider> logger)
+public sealed class PoeNinjaMarketDataProvider(
+    HttpClient http,
+    ISettingsService settings,
+    IAppPaths paths,
+    TimeProvider time,
+    ILogger<PoeNinjaMarketDataProvider> logger)
     : IMarketDataProvider
 {
     public const string DefaultBaseUrl = "https://poe.ninja";
     private static readonly TimeSpan FreshFor = TimeSpan.FromMinutes(10);
+
+    /// <summary>Unique art practically never changes; the compact name → icon map is refreshed weekly.</summary>
+    private static readonly TimeSpan UniqueIconsMaxAge = TimeSpan.FromDays(7);
+    private static readonly IReadOnlyDictionary<string, string> NoIcons = FrozenDictionary<string, string>.Empty;
+    private static readonly Task<IReadOnlyDictionary<string, string>> NoIconsTask = Task.FromResult(NoIcons);
+
+    private static readonly FrozenSet<string> AccessoryClasses =
+        new[] { "Amulets", "Rings", "Belts", "Trinkets" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+
+    private static readonly FrozenSet<string> ArmourClasses =
+        new[] { "Body Armours", "Helmets", "Gloves", "Boots", "Shields", "Quivers", "Foci", "Bucklers" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+
+    private readonly ConcurrentDictionary<string, Lazy<Task<IReadOnlyDictionary<string, string>>>> _uniqueIcons = new(StringComparer.Ordinal);
 
     private readonly ConcurrentDictionary<string, CachedOverview> _cache = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, Lazy<Task<ExchangeOverview?>>> _inflight = new(StringComparer.Ordinal);
@@ -131,6 +151,197 @@ public sealed class PoeNinjaMarketDataProvider(HttpClient http, ISettingsService
         }
 
         return null;
+    }
+
+    public Task<IReadOnlyDictionary<string, string>> GetUniqueIconsAsync(IGameModule game, string league, ParsedItem item, CancellationToken cancellationToken)
+    {
+        var type = UniqueOverviewType(game.Game, item);
+        if (type is null)
+        {
+            return NoIconsTask;
+        }
+
+        // Art is the same in every league, so one map per game and group serves all leagues.
+        var key = $"{game.Game}|{type}";
+        var task = _uniqueIcons.GetOrAdd(key, k => new Lazy<Task<IReadOnlyDictionary<string, string>>>(
+            () => Task.Run(() => LoadUniqueIconsAsync(game, league, type, k)))).Value;
+        return task.IsCompleted ? task : task.WaitAsync(cancellationToken);
+    }
+
+    /// <summary>poe.ninja stash overview type holding the item's uniques, or null when it has none.</summary>
+    internal static string? UniqueOverviewType(GameId game, ParsedItem item)
+    {
+        var poe2 = game == GameId.Poe2;
+        switch (item.Category)
+        {
+            case ItemCategory.Jewel:
+                return poe2 ? "UniqueJewels" : "UniqueJewel";
+            case ItemCategory.Flask:
+                return poe2 ? "UniqueFlasks" : "UniqueFlask";
+            case ItemCategory.Charm:
+                return poe2 ? "UniqueCharms" : null;
+            case ItemCategory.Map:
+                return poe2 ? null : "UniqueMap";
+            case ItemCategory.Relic:
+                return poe2 ? "UniqueSanctumRelics" : "UniqueRelic";
+            case ItemCategory.Tablet:
+                return poe2 ? "UniqueTablets" : null;
+            case ItemCategory.Equipment:
+                break;
+            default:
+                return null;
+        }
+
+        var cls = item.ItemClass;
+        if (string.IsNullOrEmpty(cls))
+        {
+            return null;
+        }
+
+        if (AccessoryClasses.Contains(cls))
+        {
+            return poe2 ? "UniqueAccessories" : "UniqueAccessory";
+        }
+
+        if (ArmourClasses.Contains(cls))
+        {
+            return poe2 ? "UniqueArmours" : "UniqueArmour";
+        }
+
+        if (cls.Contains("Tincture", StringComparison.OrdinalIgnoreCase))
+        {
+            return poe2 ? null : "UniqueTincture";
+        }
+
+        return poe2 ? "UniqueWeapons" : "UniqueWeapon";
+    }
+
+    /// <summary>
+    /// The overview carries prices for every listed unique (MBs for armours); only the name → icon map is kept, in
+    /// memory and on disk, so later sessions read a few KB and the overview is downloaded at most once a week.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<string, string>> LoadUniqueIconsAsync(IGameModule game, string league, string type, string key)
+    {
+        var cachePath = Path.Combine(paths.CacheDirectory, $"ninja-unique-icons-{game.NinjaSegment}-{type}.json");
+        var exists = File.Exists(cachePath);
+        if (exists && time.GetUtcNow() - File.GetLastWriteTimeUtc(cachePath) < UniqueIconsMaxAge
+            && await ReadIconCacheAsync(cachePath).ConfigureAwait(false) is { Count: > 0 } cached)
+        {
+            return cached;
+        }
+
+        try
+        {
+            var baseUrl = settings.Current.Trade.NinjaBaseUrl;
+            baseUrl = string.IsNullOrWhiteSpace(baseUrl) ? DefaultBaseUrl : baseUrl.TrimEnd('/');
+            var url = $"{baseUrl}/{game.NinjaSegment}/api/economy/stash/current/item/overview?league={Uri.EscapeDataString(league)}&type={Uri.EscapeDataString(type)}";
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cts.Token).ConfigureAwait(false);
+            if (response.IsSuccessStatusCode)
+            {
+                await using var stream = await response.Content.ReadAsStreamAsync(cts.Token).ConfigureAwait(false);
+                using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: cts.Token).ConfigureAwait(false);
+                var icons = ParseUniqueIcons(doc.RootElement);
+                if (icons.Count > 0)
+                {
+                    await WriteIconCacheAsync(cachePath, icons).ConfigureAwait(false);
+                    return icons;
+                }
+            }
+            else
+            {
+                logger.LogInformation("poe.ninja {Type} overview returned {Status}", type, (int)response.StatusCode);
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or JsonException or IOException)
+        {
+            logger.LogWarning(ex, "poe.ninja {Type} overview request failed; using cached unique icons if present", type);
+        }
+
+        if (exists && await ReadIconCacheAsync(cachePath).ConfigureAwait(false) is { Count: > 0 } stale)
+        {
+            return stale;
+        }
+
+        _uniqueIcons.TryRemove(key, out _); // allow a later retry
+        return NoIcons;
+    }
+
+    /// <summary>Reads lines[].name / lines[].icon. Variants share a name; the first listed art is kept.</summary>
+    internal static IReadOnlyDictionary<string, string> ParseUniqueIcons(JsonElement root)
+    {
+        if (!root.TryGetProperty("lines", out var lines) || lines.ValueKind != JsonValueKind.Array)
+        {
+            return NoIcons;
+        }
+
+        var map = new Dictionary<string, string>(lines.GetArrayLength(), StringComparer.OrdinalIgnoreCase);
+        foreach (var line in lines.EnumerateArray())
+        {
+            if (line.ValueKind == JsonValueKind.Object
+                && line.TryGetProperty("name", out var nm) && nm.ValueKind == JsonValueKind.String && nm.GetString() is { Length: > 0 } name
+                && !map.ContainsKey(name))
+            {
+                AddIcon(map, name, line);
+            }
+        }
+
+        return map.Count == 0 ? NoIcons : map.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private async Task<IReadOnlyDictionary<string, string>?> ReadIconCacheAsync(string path)
+    {
+        try
+        {
+            await using var stream = File.OpenRead(path);
+            using var doc = await JsonDocument.ParseAsync(stream).ConfigureAwait(false);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var p in doc.RootElement.EnumerateObject())
+            {
+                if (p.Value.ValueKind == JsonValueKind.String && p.Value.GetString() is { Length: > 0 } icon)
+                {
+                    map[p.Name] = icon;
+                }
+            }
+
+            return map.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            logger.LogDebug(ex, "Cached unique icons unreadable");
+            return null;
+        }
+    }
+
+    private async Task WriteIconCacheAsync(string path, IReadOnlyDictionary<string, string> icons)
+    {
+        var temp = $"{path}.{Environment.ProcessId}.tmp";
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            await using (var stream = File.Create(temp))
+            await using (var writer = new Utf8JsonWriter(stream))
+            {
+                writer.WriteStartObject();
+                foreach (var (name, icon) in icons)
+                {
+                    writer.WriteString(name, icon);
+                }
+
+                writer.WriteEndObject();
+            }
+
+            File.Move(temp, path, overwrite: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            logger.LogDebug(ex, "Could not cache unique icons on disk");
+        }
     }
 
     private static IEnumerable<string> OrderedTypes(IGameModule game, ParsedItem item)

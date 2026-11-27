@@ -4,10 +4,17 @@ using ExileLens.Core.Items;
 
 namespace ExileLens.Core.Trade;
 
-/// <summary>A trade stat definition as published by the official trade data endpoint. Multi-line stats keep their '\n'.</summary>
-public sealed record TradeStat(string Id, string Text, string Type);
+/// <summary>
+/// A trade stat definition as published by the official trade data endpoint. Multi-line stats keep their '\n'.
+/// Option stats (e.g. imbued supports) are listed once per option: <see cref="OptionId"/> is the option's id and
+/// <see cref="Text"/> the option's text.
+/// </summary>
+public sealed record TradeStat(string Id, string Text, string Type, string? OptionId = null);
 
 public readonly record struct ResolvedStat(string Id, bool Negated);
+
+/// <summary>An option-valued trade stat: searched as {"id": StatId, "value": {"option": OptionId}}.</summary>
+public readonly record struct ResolvedOption(string StatId, string OptionId);
 
 /// <summary>
 /// Maps normalized modifier patterns to official trade stat ids, per modifier type
@@ -27,16 +34,32 @@ public sealed class StatIndex
     /// <summary>"type|first line" of every multi-line stat → its largest line count. Lets single-line mods skip joining.</summary>
     private readonly FrozenDictionary<string, int> _multiLineHeads;
 
+    /// <summary>Imbued gem support name (case-insensitive) → option-valued trade stat.</summary>
+    private readonly FrozenDictionary<string, ResolvedOption> _imbuedSupports;
+
+    public const string ImbuedType = "imbued";
+
     public StatIndex(IEnumerable<TradeStat> stats)
     {
         var global = new Dictionary<string, string>(StringComparer.Ordinal);
         var local = new Dictionary<string, string>(StringComparer.Ordinal);
         var heads = new Dictionary<string, int>(StringComparer.Ordinal);
+        var imbued = new Dictionary<string, ResolvedOption>(StringComparer.OrdinalIgnoreCase);
         List<(string Key, string Id, bool IsLocal)>? lineFallbacks = null;
         var count = 0;
         foreach (var s in stats)
         {
             count++;
+            if (s.OptionId is { } optionId)
+            {
+                if (s.Type == ImbuedType)
+                {
+                    imbued.TryAdd(SupportName(s.Text), new ResolvedOption(s.Id, optionId));
+                }
+
+                continue;
+            }
+
             var text = s.Text;
             var isLocal = text.EndsWith(LocalSuffix, StringComparison.OrdinalIgnoreCase);
             if (isLocal)
@@ -97,10 +120,15 @@ public sealed class StatIndex
         _global = global.ToFrozenDictionary(StringComparer.Ordinal);
         _local = local.ToFrozenDictionary(StringComparer.Ordinal);
         _multiLineHeads = heads.ToFrozenDictionary(StringComparer.Ordinal);
+        _imbuedSupports = imbued.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
         Count = count;
     }
 
     public int Count { get; }
+
+    /// <summary>Trade stat of an imbued gem's built-in support, by the support's name (e.g. "Lifetap").</summary>
+    public bool TryResolveImbuedSupport(string supportName, out ResolvedOption option) =>
+        _imbuedSupports.TryGetValue(supportName, out option);
 
     public static string TypeFor(ModifierKind kind) => kind switch
     {
@@ -112,6 +140,7 @@ public sealed class StatIndex
         ModifierKind.Desecrated => "desecrated",
         ModifierKind.Scourge => "scourge",
         ModifierKind.Crucible => "crucible",
+        ModifierKind.Mutated => "mutated",
         _ => "explicit",
     };
 
@@ -123,7 +152,7 @@ public sealed class StatIndex
             return true;
         }
 
-        // Desecrated/fractured lines are often only listed as explicit in older datasets.
+        // Desecrated/fractured/mutated lines are often only listed as explicit in the datasets.
         return type != "explicit" && TryResolve("explicit", modifier.Pattern, preferLocal, out stat);
     }
 
@@ -238,6 +267,26 @@ public sealed class StatIndex
         }
 
         return _local.TryGetValue(key, out id!);
+    }
+
+    /// <summary>"Supported by Level 1 Lifetap" or "Lifetap" → "Lifetap".</summary>
+    private static string SupportName(string text)
+    {
+        const string prefix = "Supported by Level ";
+        var span = text.AsSpan().Trim();
+        if (span.StartsWith(prefix, StringComparison.Ordinal))
+        {
+            span = span[prefix.Length..];
+            var digits = 0;
+            while (digits < span.Length && char.IsAsciiDigit(span[digits]))
+            {
+                digits++;
+            }
+
+            span = span[digits..];
+        }
+
+        return span.Trim().Trim('\u200B').ToString();
     }
 
     private static string Key(string type, string pattern) => string.Concat(type, "|", pattern.ToLowerInvariant());

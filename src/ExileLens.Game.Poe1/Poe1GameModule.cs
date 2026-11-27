@@ -37,7 +37,9 @@ public sealed class Poe1GameModule(IAppPaths paths) : IGameModule
         LinksKey: "links",
         MapGroup: "map_filters",
         MapTierKey: "map_tier",
-        FoulbornGroup: "misc_filters");
+        FoulbornGroup: "misc_filters",
+        SynthesisedGroup: "misc_filters",
+        ImbuedGroup: "misc_filters");
 
     public string DefaultValuationCurrency => "Chaos Orb";
 
@@ -71,6 +73,7 @@ public sealed class Poe1GameModule(IAppPaths paths) : IGameModule
     {
         ItemCategory.Equipment, ItemCategory.Jewel, ItemCategory.Flask, ItemCategory.Currency, ItemCategory.Fragment, ItemCategory.Map,
         ItemCategory.Gem, ItemCategory.DivinationCard, ItemCategory.Essence, ItemCategory.Scarab, ItemCategory.Omen, ItemCategory.Relic,
+        ItemCategory.Corpse,
     }.ToFrozenSet();
 
     public RewardRuleSet RewardRules => _rewards.Value;

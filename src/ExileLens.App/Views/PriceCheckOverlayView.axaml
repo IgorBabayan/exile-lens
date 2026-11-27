@@ -8,6 +8,40 @@
     (and scroll on their own), the rewards/trade button stay pinned below. In the overlay the window caps the height,
     so only the listings scroll; embedded in a page the star row simply sizes to content.
   -->
+  <UserControl.Styles>
+    <!-- Modifier origin tag and in-game origin colors (order matters: the origin styles override the tag style;
+         TextBlock and Run selectors stay separate so each setter resolves Foreground on its own type). -->
+    <Style Selector="TextBlock.mod Run.tag">
+      <Setter Property="FontSize" Value="{DynamicResource FontSizeCaption}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    </Style>
+    <Style Selector="TextBlock.mod.fractured">
+      <Setter Property="Foreground" Value="{DynamicResource ModFracturedBrush}" />
+    </Style>
+    <Style Selector="TextBlock.mod.fractured Run.tag">
+      <Setter Property="Foreground" Value="{DynamicResource ModFracturedBrush}" />
+    </Style>
+    <Style Selector="TextBlock.mod.crafted">
+      <Setter Property="Foreground" Value="{DynamicResource ModCraftedBrush}" />
+    </Style>
+    <Style Selector="TextBlock.mod.crafted Run.tag">
+      <Setter Property="Foreground" Value="{DynamicResource ModCraftedBrush}" />
+    </Style>
+    <Style Selector="TextBlock.mod.foulborn">
+      <Setter Property="Foreground" Value="{DynamicResource ModFoulbornBrush}" />
+    </Style>
+    <Style Selector="TextBlock.mod.foulborn Run.tag">
+      <Setter Property="Foreground" Value="{DynamicResource ModFoulbornBrush}" />
+    </Style>
+    <!-- Prefix/suffix colors come from the settings (App.ApplyAppearance writes the brushes; no per-row work). -->
+    <Style Selector="TextBlock.mod.prefix">
+      <Setter Property="Foreground" Value="{DynamicResource ModPrefixBrush}" />
+    </Style>
+    <Style Selector="TextBlock.mod.suffix">
+      <Setter Property="Foreground" Value="{DynamicResource ModSuffixBrush}" />
+    </Style>
+  </UserControl.Styles>
+
   <Grid RowDefinitions="Auto,*,Auto">
   <StackPanel Grid.Row="0" Spacing="0">
     <!-- Header (drag handle: pressing anywhere except the buttons moves the overlay) -->
@@ -55,20 +89,29 @@
       <TextBlock Classes="caption" TextWrapping="Wrap"
                  Text="The item is unidentified, so its name is unknown. Pick the unique to price it." />
       <StackPanel IsVisible="{Binding IsLoadingUniques}" Spacing="6" Margin="0,4,0,2">
-        <Border Classes="skeleton" Height="30" />
-        <Border Classes="skeleton" Height="30" />
-        <Border Classes="skeleton" Height="30" />
+        <Border Classes="skeleton" Height="42" />
+        <Border Classes="skeleton" Height="42" />
+        <Border Classes="skeleton" Height="42" />
       </StackPanel>
       <ScrollViewer MaxHeight="380" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
                     IsVisible="{Binding !IsLoadingUniques}">
         <ItemsControl ItemsSource="{Binding UniqueChoices}" Margin="0,0,4,0">
           <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="x:String">
-              <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Margin="0,2" Padding="12,7"
+            <DataTemplate x:DataType="vm:UniqueChoiceViewModel">
+              <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Margin="0,2" Padding="8,4,12,4"
                       Command="{Binding $parent[UserControl].((vm:PriceCheckOverlayViewModel)DataContext).ChooseUniqueCommand}"
                       CommandParameter="{Binding}">
-                <TextBlock Text="{Binding}" FontWeight="Medium" TextTrimming="CharacterEllipsis"
-                           Foreground="{Binding $parent[UserControl].((vm:PriceCheckOverlayViewModel)DataContext).UniqueBrush}" />
+                <Grid ColumnDefinitions="Auto,*">
+                  <!-- Fixed slot: rows keep their layout while the art streams in. -->
+                  <Border Width="34" Height="34" CornerRadius="6" Background="{DynamicResource SurfaceAltBrush}">
+                    <Image Source="{Binding Icon}" Margin="2" Stretch="Uniform"
+                           RenderOptions.BitmapInterpolationMode="HighQuality"
+                           IsVisible="{Binding Icon, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                  </Border>
+                  <TextBlock Grid.Column="1" Text="{Binding Name}" Margin="10,0,0,0" VerticalAlignment="Center"
+                             FontWeight="Medium" TextTrimming="CharacterEllipsis"
+                             Foreground="{Binding $parent[UserControl].((vm:PriceCheckOverlayViewModel)DataContext).UniqueBrush}" />
+                </Grid>
               </Button>
             </DataTemplate>
           </ItemsControl.ItemTemplate>
@@ -115,17 +158,38 @@
     <ItemsControl ItemsSource="{Binding StatFilters}" IsVisible="{Binding HasStatFilters}">
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:FilterItemViewModel">
-          <Grid ColumnDefinitions="*,Auto" Margin="0,2">
-            <CheckBox IsChecked="{Binding Enabled}" MinHeight="28">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <TextBlock Text="{Binding Label}" TextWrapping="Wrap" MaxWidth="290" />
-                <TextBlock Text="{Binding KindTag}" Classes="caption" VerticalAlignment="Center"
-                           IsVisible="{Binding KindTag, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-              </StackPanel>
-            </CheckBox>
-            <TextBox Grid.Column="1" Text="{Binding MinText}" Width="58" MinHeight="26" Padding="6,3" FontSize="12"
-                     PlaceholderText="min" IsEnabled="{Binding Enabled}" ToolTip.Tip="Minimum value" />
-          </Grid>
+          <StackPanel Margin="0,2">
+            <Grid ColumnDefinitions="*,Auto">
+              <CheckBox IsChecked="{Binding Enabled}" MinHeight="28">
+                <!-- One wrapping line: origin tag first, then the modifier, tinted like the game tooltip. -->
+                <TextBlock Classes="mod" TextWrapping="Wrap" MaxWidth="290"
+                           Classes.fractured="{Binding IsFractured}" Classes.crafted="{Binding IsCrafted}"
+                           Classes.foulborn="{Binding IsFoulborn}"
+                           Classes.prefix="{Binding IsPrefix}" Classes.suffix="{Binding IsSuffix}">
+                  <Run Classes="tag" Text="{Binding KindTag}" /><Run Text="{Binding Label}" />
+                </TextBlock>
+              </CheckBox>
+              <TextBox Grid.Column="1" Text="{Binding MinText}" Width="58" MinHeight="26" Padding="6,3" FontSize="12"
+                       PlaceholderText="min" IsEnabled="{Binding Enabled}" IsVisible="{Binding HasMinBox}" ToolTip.Tip="Minimum value" />
+            </Grid>
+            <!-- Hybrid affix: the other lines of the same affix, one checkbox for all, a minimum per line. -->
+            <ItemsControl ItemsSource="{Binding ExtraLines}" IsVisible="{Binding HasExtraLines}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:FilterLineViewModel">
+                  <Grid ColumnDefinitions="*,Auto" Margin="0,2,0,0">
+                    <TextBlock Classes="mod" TextWrapping="Wrap" MaxWidth="262" Margin="28,0,0,0" VerticalAlignment="Center"
+                               Classes.fractured="{Binding IsFractured}" Classes.crafted="{Binding IsCrafted}"
+                               Classes.foulborn="{Binding IsFoulborn}"
+                               Classes.prefix="{Binding IsPrefix}" Classes.suffix="{Binding IsSuffix}"
+                               Text="{Binding Label}" />
+                    <TextBox Grid.Column="1" Text="{Binding MinText}" Width="58" MinHeight="26" Padding="6,3" FontSize="12"
+                             PlaceholderText="min" IsVisible="{Binding HasMinBox}" ToolTip.Tip="Minimum value"
+                             IsEnabled="{Binding $parent[ItemsControl].((vm:FilterItemViewModel)DataContext).Enabled, FallbackValue=True}" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
         </DataTemplate>
       </ItemsControl.ItemTemplate>
     </ItemsControl>

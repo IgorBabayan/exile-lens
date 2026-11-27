@@ -1,0 +1,22 @@
+Item Class: Boots
+Rarity: Rare
+Havoc Spur
+Sharkskin Boots
+--------
+Evasion Rating: 210 (augmented)
+--------
+Requirements:
+Level: 44
+Dex: 79
+--------
+Item Level: 84
+--------
+{ Fractured Prefix Modifier "Fox's" (Tier: 4) — Defences, Evasion }
+40(39-42)% increased Evasion Rating (fractured)
+17(16-17)% increased Stun and Block Recovery (fractured)
+{ Prefix Modifier "Rotund" (Tier: 3) — Life }
++71(70-79) to maximum Life
+{ Suffix Modifier "of the Volcano" (Tier: 4) — Elemental, Fire, Resistance }
++33(30-35)% to Fire Resistance
+--------
+Fractured Item

@@ -82,6 +82,18 @@
             </ItemsControl>
           </StackPanel>
           <StackPanel Classes="row">
+            <TextBlock Classes="label" Text="Prefix color" />
+            <TextBox Text="{Binding PrefixColor}" Width="110" />
+            <Border Width="20" Height="20" CornerRadius="10" Background="{Binding PrefixColor, Converter={x:Static conv:Converters.ColorToBrush}}" />
+          </StackPanel>
+          <StackPanel Classes="row">
+            <TextBlock Classes="label" Text="Suffix color" />
+            <TextBox Text="{Binding SuffixColor}" Width="110" />
+            <Border Width="20" Height="20" CornerRadius="10" Background="{Binding SuffixColor, Converter={x:Static conv:Converters.ColorToBrush}}" />
+          </StackPanel>
+          <TextBlock Classes="caption" TextWrapping="Wrap"
+                     Text="Prefix and suffix colors tint price-check modifiers; they need the advanced item copy (General)." />
+          <StackPanel Classes="row">
             <TextBlock Classes="label" Text="Font size" />
             <Slider Value="{Binding FontSize}" Minimum="11" Maximum="17" Width="220" TickFrequency="0.5" IsSnapToTickEnabled="True" />
             <TextBlock Text="{Binding FontSize, StringFormat='{}{0:0.#} pt'}" VerticalAlignment="Center" Classes="secondary" />

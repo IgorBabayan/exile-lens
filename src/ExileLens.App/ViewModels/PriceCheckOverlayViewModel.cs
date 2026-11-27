@@ -29,9 +29,27 @@ public sealed partial class FilterItemViewModel : ObservableObject
         _enabled = filter.Enabled;
         _minText = Formatting.Format(filter.Min);
         _maxText = Formatting.Format(filter.Max);
+        if (filter.Extra.Count > 0)
+        {
+            var lines = new FilterLineViewModel[filter.Extra.Count];
+            for (var i = 0; i < lines.Length; i++)
+            {
+                lines[i] = new FilterLineViewModel(filter, filter.Extra[i], changed);
+            }
+
+            ExtraLines = lines;
+        }
     }
 
     public SearchFilter Filter { get; }
+
+    /// <summary>Further lines of a hybrid affix: shown under the first line, toggled by its checkbox, each with its own minimum.</summary>
+    public IReadOnlyList<FilterLineViewModel> ExtraLines { get; } = [];
+
+    public bool HasExtraLines => ExtraLines.Count > 0;
+
+    /// <summary>Option stats (an imbued gem's support) match by option and have no minimum.</summary>
+    public bool HasMinBox => Filter.OptionId is null;
 
     public string Label => Filter.Kind switch
     {
@@ -46,20 +64,37 @@ public sealed partial class FilterItemViewModel : ObservableObject
 
     public bool IsStat => Filter.Kind == FilterKind.Stat;
 
-    public bool HasRange => Filter.Kind is not (FilterKind.Corrupted or FilterKind.Rarity or FilterKind.Name);
+    public bool HasRange => Filter.Kind is not (FilterKind.Corrupted or FilterKind.Rarity or FilterKind.Name or FilterKind.Imbued);
 
     public bool HasMax => Filter.Kind is FilterKind.MapTier or FilterKind.GemLevel or FilterKind.ItemLevel;
 
+    /// <summary>Origin tag shown before the modifier text ("fractured: ", "crafted: ", ...); null for plain explicits.</summary>
     public string? KindTag => Filter.ModifierKind switch
     {
-        ModifierKind.Implicit => "implicit",
-        ModifierKind.Crafted => "crafted",
-        ModifierKind.Fractured => "fractured",
-        ModifierKind.Enchant => "enchant",
-        ModifierKind.Rune => "rune",
-        ModifierKind.Desecrated => "desecrated",
+        ModifierKind.Implicit => "implicit: ",
+        ModifierKind.Crafted => "crafted: ",
+        ModifierKind.Fractured => "fractured: ",
+        ModifierKind.Enchant => "enchant: ",
+        ModifierKind.Rune => "rune: ",
+        ModifierKind.Desecrated => "desecrated: ",
+        ModifierKind.Mutated => "foulborn: ",
         _ => null,
     };
+
+    /// <summary>Drives the in-game fractured color on the modifier line.</summary>
+    public bool IsFractured => Filter.ModifierKind == ModifierKind.Fractured;
+
+    /// <summary>Drives the in-game crafted color on the modifier line.</summary>
+    public bool IsCrafted => Filter.ModifierKind == ModifierKind.Crafted;
+
+    /// <summary>Drives the in-game Foulborn (mutated) color on the modifier line.</summary>
+    public bool IsFoulborn => Filter.ModifierKind == ModifierKind.Mutated;
+
+    /// <summary>Plain explicit prefix (advanced copy only): tinted with the prefix color from the settings.</summary>
+    public bool IsPrefix => Filter.Slot == AffixSlot.Prefix && Filter.ModifierKind == ModifierKind.Explicit;
+
+    /// <summary>Plain explicit suffix (advanced copy only): tinted with the suffix color from the settings.</summary>
+    public bool IsSuffix => Filter.Slot == AffixSlot.Suffix && Filter.ModifierKind == ModifierKind.Explicit;
 
     [ObservableProperty]
     private bool _enabled;
@@ -101,6 +136,52 @@ public sealed partial class FilterItemViewModel : ObservableObject
     }
 }
 
+/// <summary>A continuation line of a hybrid affix row; enabled together with its head filter.</summary>
+public sealed partial class FilterLineViewModel : ObservableObject
+{
+    private readonly SearchFilter _head;
+    private readonly Action _changed;
+
+    public FilterLineViewModel(SearchFilter head, SearchFilter line, Action changed)
+    {
+        _head = head;
+        _changed = changed;
+        Line = line;
+        _minText = Formatting.Format(line.Min);
+    }
+
+    public SearchFilter Line { get; }
+
+    public string Label => Line.Label;
+
+    public bool HasMinBox => Line.OptionId is null;
+
+    public bool IsFractured => Line.ModifierKind == ModifierKind.Fractured;
+
+    public bool IsCrafted => Line.ModifierKind == ModifierKind.Crafted;
+
+    public bool IsFoulborn => Line.ModifierKind == ModifierKind.Mutated;
+
+    public bool IsPrefix => Line.Slot == AffixSlot.Prefix && Line.ModifierKind == ModifierKind.Explicit;
+
+    public bool IsSuffix => Line.Slot == AffixSlot.Suffix && Line.ModifierKind == ModifierKind.Explicit;
+
+    [ObservableProperty]
+    private string? _minText;
+
+    partial void OnMinTextChanged(string? value)
+    {
+        if (Formatting.TryParseDouble(value, out var v))
+        {
+            Line.Min = v;
+            if (_head.Enabled)
+            {
+                _changed();
+            }
+        }
+    }
+}
+
 /// <summary>One market listing. <see cref="CurrencyIcon"/> is set only when prices are shown with currency art.</summary>
 public sealed partial class ListingItemViewModel(string amount, string currencyName, string price, string seller, bool online, string age, string? summary)
     : ObservableObject
@@ -127,6 +208,18 @@ public sealed partial class ListingItemViewModel(string amount, string currencyN
 
 public sealed record KeyValueRow(string Label, string Value);
 
+/// <summary>One unique in the "which unique is this?" picker. The art arrives after the list is shown.</summary>
+public sealed partial class UniqueChoiceViewModel(string name) : ObservableObject
+{
+    public string Name { get; } = name;
+
+    /// <summary>Art URL once known; passed on so the chosen unique's header shows the same art at once.</summary>
+    public string? IconUrl { get; set; }
+
+    [ObservableProperty]
+    private Bitmap? _icon;
+}
+
 public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOverlayContent
 {
     /// <summary>Quiet period after the last filter edit before a search is sent (avoids a request per click/keystroke).</summary>
@@ -145,6 +238,7 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
     private CancellationTokenSource? _iconCts;
     private CancellationTokenSource? _currencyIconCts;
     private CancellationTokenSource? _uniqueCts;
+    private CancellationTokenSource? _uniqueIconCts;
     private string? _iconUrl;
     private PriceCheckSession? _session;
     private bool _historyRecorded;
@@ -269,9 +363,9 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
     [ObservableProperty]
     private bool _isLoadingUniques;
 
-    /// <summary>Uniques the unidentified item may be (the cached list itself, not a copy).</summary>
+    /// <summary>Uniques the unidentified item may be, with their art as it loads.</summary>
     [ObservableProperty]
-    private IReadOnlyList<string> _uniqueChoices = [];
+    private IReadOnlyList<UniqueChoiceViewModel> _uniqueChoices = [];
 
     public IBrush UniqueBrush { get; } = DangerPalette.Rarity(ItemRarity.Unique);
 
@@ -353,7 +447,7 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
             else if (candidates.Count > 1)
             {
                 IsChoosingUnique = true;
-                UniqueChoices = candidates;
+                ShowUniqueChoices(session, candidates);
             }
 
             // No known unique on this base: search any unique of the base.
@@ -480,7 +574,7 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
                     SelectUnique(candidates[0], userChoice: false);
                     break;
                 default:
-                    UniqueChoices = candidates;
+                    ShowUniqueChoices(session, candidates);
                     break;
             }
         }
@@ -491,11 +585,81 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
     }
 
     [RelayCommand]
-    private void ChooseUnique(string? name)
+    private void ChooseUnique(UniqueChoiceViewModel? choice)
     {
-        if (name is not null && IsChoosingUnique && _session is not null)
+        if (choice is not null && IsChoosingUnique && _session is not null)
         {
-            SelectUnique(name, userChoice: true);
+            SelectUnique(choice.Name, userChoice: true, choice.IconUrl);
+        }
+    }
+
+    private void ShowUniqueChoices(PriceCheckSession session, IReadOnlyList<string> names)
+    {
+        var choices = new UniqueChoiceViewModel[names.Count];
+        for (var i = 0; i < choices.Length; i++)
+        {
+            choices[i] = new UniqueChoiceViewModel(names[i]);
+        }
+
+        UniqueChoices = choices;
+        CancelUniqueIcons();
+        _uniqueIconCts = new CancellationTokenSource();
+        _ = LoadUniqueIconsAsync(session, choices, _uniqueIconCts.Token);
+    }
+
+    /// <summary>
+    /// Fills in the picker art: decoded bitmaps already in memory are applied synchronously (no flicker), the rest load
+    /// in parallel through the shared icon cache. The list is usable meanwhile; rows without art keep an empty slot.
+    /// </summary>
+    private async Task LoadUniqueIconsAsync(PriceCheckSession session, UniqueChoiceViewModel[] choices, CancellationToken token)
+    {
+        IReadOnlyDictionary<string, string> urls;
+        try
+        {
+            urls = await _pricing.GetUniqueIconUrlsAsync(session, token);
+        }
+        catch (OperationCanceledException)
+        {
+            return; // another item was opened, a unique was picked or the overlay closed
+        }
+
+        if (token.IsCancellationRequested || urls.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var choice in choices)
+        {
+            if (!urls.TryGetValue(choice.Name, out var url))
+            {
+                continue;
+            }
+
+            choice.IconUrl = url;
+            if (_icons.TryGetCached(url) is { } cached)
+            {
+                choice.Icon = cached;
+            }
+            else
+            {
+                _ = LoadUniqueIconAsync(choice, url, token);
+            }
+        }
+    }
+
+    private async Task LoadUniqueIconAsync(UniqueChoiceViewModel choice, string url, CancellationToken token)
+    {
+        try
+        {
+            var bitmap = await _icons.LoadAsync(url, token);
+            if (!token.IsCancellationRequested && bitmap is not null)
+            {
+                choice.Icon = bitmap;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // the picker was closed; the shared download still completes and lands in the cache
         }
     }
 
@@ -515,13 +679,13 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
         _ = RunAsync();
     }
 
-    private void SelectUnique(string name, bool userChoice)
+    private void SelectUnique(string name, bool userChoice, string? iconUrl = null)
     {
         CancelUniqueLookup();
         IsLoadingUniques = false;
         UniqueChoices = [];
         IsChoosingUnique = false;
-        LoadSession(_pricing.ChooseUnique(_session!, name));
+        LoadSession(_pricing.ChooseUnique(_session!, name, iconUrl));
 
         // A pick is an explicit request to price the item; an automatic single match follows the auto-search setting.
         if (userChoice)
@@ -539,6 +703,14 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
         _uniqueCts?.Cancel();
         _uniqueCts?.Dispose();
         _uniqueCts = null;
+        CancelUniqueIcons();
+    }
+
+    private void CancelUniqueIcons()
+    {
+        _uniqueIconCts?.Cancel();
+        _uniqueIconCts?.Dispose();
+        _uniqueIconCts = null;
     }
 
     private void CancelCurrencyIcons()

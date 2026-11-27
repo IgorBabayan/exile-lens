@@ -1,0 +1,19 @@
+Item Class: Belts
+Rarity: Unique
+Foulborn Soul Tether
+Cloth Belt
+--------
+Requirements:
+Level: 48
+--------
+Item Level: 84
+--------
+21% increased Stun and Block Recovery (implicit)
+--------
++36 to Intelligence
+Gain 5% of Maximum Life as Extra Maximum Energy Shield
+Everlasting Sacrifice (mutated)
+--------
+Vaal bloodpriests were among the earliest intellectuals on record.
+It was they who found that a newly freed soul would
+desperately cling to any other source of life.

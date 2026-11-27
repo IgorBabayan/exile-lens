@@ -30,6 +30,9 @@ public enum ModifierKind
     Desecrated,
     Scourge,
     Crucible,
+
+    /// <summary>PoE 1 Foulborn (mutated) unique modifier: "(mutated)" in the simple copy, "{ Foulborn Unique Modifier }" in the advanced one.</summary>
+    Mutated,
 }
 
 public enum AffixSlot
@@ -64,6 +67,9 @@ public enum ItemCategory
     SoulCore,
     Relic,
     Other,
+
+    /// <summary>PoE 1 Necropolis corpse: one trade item per monster, priced by corpse (item) level.</summary>
+    Corpse,
 }
 
 /// <summary>One modifier line as it appears on the item.</summary>
@@ -101,6 +107,9 @@ public sealed class ParsedItem
     public int? ItemLevel { get; init; }
     public int? Quality { get; init; }
     public int? GemLevel { get; init; }
+
+    /// <summary>PoE 1 imbued gem: name of the built-in support ("Supported by Level 1 Lifetap" → "Lifetap").</summary>
+    public string? ImbuedSupport { get; init; }
     public int? MapTier { get; init; }
     public int? StackSize { get; init; }
     public int? MaxStackSize { get; init; }
@@ -152,6 +161,7 @@ public sealed class ParsedItem
         ItemLevel = ItemLevel,
         Quality = Quality,
         GemLevel = GemLevel,
+        ImbuedSupport = ImbuedSupport,
         MapTier = MapTier,
         StackSize = StackSize,
         MaxStackSize = MaxStackSize,

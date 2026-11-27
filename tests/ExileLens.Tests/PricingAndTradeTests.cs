@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using ExileLens.Core.Economy;
 using ExileLens.Core.Items;
 using ExileLens.Core.Trade;
+using ExileLens.Infrastructure.Market;
 using ExileLens.Infrastructure.Trade;
 
 namespace ExileLens.Tests;
@@ -181,7 +182,7 @@ public sealed class TradeQueryTests
         query = builder.Build(chosen, builder.CreateDefaultFilters(chosen, Stats(), options), options)["query"]!;
         Assert.AreEqual("Lioneye's Glare", query["name"]!.GetValue<string>());
         Assert.AreEqual("Imperial Bow", query["type"]!.GetValue<string>());
-        Assert.AreEqual("false", query["filters"]!["misc_filters"]!["filters"]!["foulborn_item"]!["option"]!.GetValue<string>());
+        Assert.AreEqual("false", query["filters"]!["misc_filters"]!["filters"]!["mutated"]!["option"]!.GetValue<string>());
     }
 
     [TestMethod]
@@ -196,7 +197,7 @@ public sealed class TradeQueryTests
         var query = builder.Build(item, builder.CreateDefaultFilters(item, Stats(), options), options)["query"]!;
         Assert.AreEqual("Zahndethus' Cassock", query["name"]!.GetValue<string>());
         Assert.AreEqual("Sage's Robe", query["type"]!.GetValue<string>());
-        Assert.AreEqual("true", query["filters"]!["misc_filters"]!["filters"]!["foulborn_item"]!["option"]!.GetValue<string>());
+        Assert.AreEqual("true", query["filters"]!["misc_filters"]!["filters"]!["mutated"]!["option"]!.GetValue<string>());
     }
 
     [TestMethod]
@@ -208,7 +209,7 @@ public sealed class TradeQueryTests
         var builder = new TradeQueryBuilder();
         var options = new TradeQueryOptions(Games.Poe1.FilterLayout);
         var query = builder.Build(item, builder.CreateDefaultFilters(item, Stats(), options), options)["query"]!;
-        Assert.AreEqual("false", query["filters"]!["misc_filters"]!["filters"]!["foulborn_item"]!["option"]!.GetValue<string>());
+        Assert.AreEqual("false", query["filters"]!["misc_filters"]!["filters"]!["mutated"]!["option"]!.GetValue<string>());
     }
 
     private const string GreenDreamManaStat = "explicit.stat_1535088208";
@@ -359,6 +360,62 @@ public sealed class TradeQueryTests
     }
 
     [TestMethod]
+    public void GemQueryHasGemLevelAndQualityFilters()
+    {
+        var item = Fixture.Parse("poe1/war-banner-gem.txt", GameId.Poe1);
+        var builder = new TradeQueryBuilder();
+        var options = new TradeQueryOptions(Games.Poe1.FilterLayout);
+        var filters = builder.CreateDefaultFilters(item, Stats(), options);
+
+        var level = filters.Single(f => f.Kind == FilterKind.GemLevel);
+        Assert.IsTrue(level.Enabled);
+        Assert.AreEqual(12d, level.Min);
+        var quality = filters.Single(f => f.Kind == FilterKind.Quality);
+        Assert.IsTrue(quality.Enabled);
+        Assert.AreEqual(17d, quality.Min);
+
+        var misc = builder.Build(item, filters, options)["query"]!["filters"]!["misc_filters"]!["filters"]!;
+        Assert.AreEqual(12d, misc["gem_level"]!["min"]!.GetValue<double>());
+        Assert.AreEqual(17d, misc["quality"]!["min"]!.GetValue<double>());
+    }
+
+    [TestMethod]
+    public void ZeroQualityGemStillOffersQualityFilterDisabled()
+    {
+        var item = Fixture.Parse("poe1/war-banner-gem-level1.txt", GameId.Poe1);
+        var builder = new TradeQueryBuilder();
+        var options = new TradeQueryOptions(Games.Poe1.FilterLayout);
+        var filters = builder.CreateDefaultFilters(item, Stats(), options);
+
+        Assert.AreEqual(1d, filters.Single(f => f.Kind == FilterKind.GemLevel).Min);
+        var quality = filters.Single(f => f.Kind == FilterKind.Quality);
+        Assert.IsFalse(quality.Enabled, "0% quality must not narrow the search until the user asks for it");
+        Assert.AreEqual(0d, quality.Min);
+
+        var misc = builder.Build(item, filters, options)["query"]!["filters"]!["misc_filters"]!["filters"]!;
+        Assert.IsNull(misc["quality"]);
+        Assert.AreEqual(1d, misc["gem_level"]!["min"]!.GetValue<double>());
+    }
+
+    [TestMethod]
+    public void GemListingSummaryShowsLevelAndQualityInsteadOfItemLevel()
+    {
+        const string json = """
+            {"result":[
+              {"id":"g1","listing":{"account":{"name":"A#1"},"price":{"amount":1,"currency":"chaos"}},"item":{"typeLine":"War Banner","ilvl":0,"frameType":4,
+                "properties":[{"name":"Aura, Banner, Spell","values":[]},{"name":"Level","values":[["20 (Max)",0]]},{"name":"Quality","values":[["+20%",1]]}]}},
+              {"id":"g2","listing":{"account":{"name":"B#1"},"price":{"amount":1,"currency":"chaos"}},"item":{"typeLine":"War Banner","ilvl":0,"frameType":4,
+                "properties":[{"name":"Level","values":[["1",0]]}]}}
+            ]}
+            """;
+        using var doc = JsonDocument.Parse(json);
+        var listings = OfficialTradeClient.ParseFetch(doc.RootElement);
+
+        Assert.AreEqual("War Banner · lvl 20 · 20%", listings[0].ItemSummary);
+        Assert.AreEqual("War Banner · lvl 1", listings[1].ItemSummary);
+    }
+
+    [TestMethod]
     public void TradeSearchUrlIncludesRealmForPoe2()
     {
         var client = new OfficialTradeClient(new HttpClient(), new Infrastructure.Http.RateLimiter(TimeProvider.System),
@@ -394,6 +451,27 @@ public sealed class TradeQueryTests
     }
 
     [TestMethod]
+    public void UniqueIconOverviewTypeFollowsItemClass()
+    {
+        Assert.AreEqual("UniqueWeapon", PoeNinjaMarketDataProvider.UniqueOverviewType(GameId.Poe1, Fixture.Parse("poe1/unidentified-unique-bow.txt", GameId.Poe1)));
+        Assert.AreEqual("UniqueAccessory", PoeNinjaMarketDataProvider.UniqueOverviewType(GameId.Poe1, Fixture.Parse("poe1/unique-amulet.txt", GameId.Poe1)));
+        Assert.AreEqual("UniqueArmour", PoeNinjaMarketDataProvider.UniqueOverviewType(GameId.Poe1, Fixture.Parse("poe1/unique-helmet-keystone.txt", GameId.Poe1)));
+        Assert.AreEqual("UniqueArmours", PoeNinjaMarketDataProvider.UniqueOverviewType(GameId.Poe2, Fixture.Parse("poe1/unique-helmet-keystone.txt", GameId.Poe1)));
+        Assert.IsNull(PoeNinjaMarketDataProvider.UniqueOverviewType(GameId.Poe2, Fixture.Parse("poe2/exalted-orb.txt", GameId.Poe2)));
+    }
+
+    [TestMethod]
+    public void UniqueOverviewYieldsIconPerName()
+    {
+        const string json = """{"lines":[{"name":"Xoph's Inception","icon":"https://web.poecdn.com/gen/image/a/Bow.png","variant":null},{"name":"Xoph's Inception","icon":"https://web.poecdn.com/gen/image/b/Other.png"},{"name":"Relative","icon":"/gen/image/c/Rel.png"},{"name":"No icon"},{"icon":"/x.png"}]}""";
+        using var doc = JsonDocument.Parse(json);
+        var icons = PoeNinjaMarketDataProvider.ParseUniqueIcons(doc.RootElement);
+        Assert.AreEqual(2, icons.Count);
+        Assert.AreEqual("https://web.poecdn.com/gen/image/a/Bow.png", icons["xoph's inception"]);
+        Assert.AreEqual("https://web.poecdn.com/gen/image/c/Rel.png", icons["Relative"]);
+    }
+
+    [TestMethod]
     public void StaticDataYieldsCurrencyIconUrls()
     {
         const string json = """{"result":[{"id":"Currency","label":"Currency","entries":[{"id":"chaos","text":"Chaos Orb","image":"/gen/image/abc/Chaos.png"},{"id":"divine","text":"Divine Orb","image":"https://web.poecdn.com/gen/image/def/Divine.png"},{"id":"noimage","text":"No image"}]},{"id":"Fragments","entries":[{"id":"frag","image":"/x.png"}]}]}""";
@@ -413,5 +491,143 @@ public sealed class TradeQueryTests
         }
 
         CollectionAssert.AreEqual(new[] { "chaos", "divine" }, TradePriceCurrencies.Find("chaos_divine").IconIds);
+    }
+
+    private const string ImbuedStatsJson = """
+        {"result":[{"id":"imbued","label":"Imbued","entries":[
+          {"id":"imbued.pseudo_built_in_support","text":"Supported by Level 1 #","type":"imbued",
+           "option":{"options":[{"id":3918067187,"text":"Lifetap"},{"id":1826945816,"text":"Added Chaos Damage"}]}}
+        ]}]}
+        """;
+
+    private static StatIndex ImbuedStats()
+    {
+        using var doc = JsonDocument.Parse(ImbuedStatsJson);
+        return new StatIndex(TradeDataProvider.ParseStats(doc.RootElement).ToList());
+    }
+
+    [TestMethod]
+    public void ImbuedSupportOptionsAreIndexedByName()
+    {
+        Assert.IsTrue(ImbuedStats().TryResolveImbuedSupport("Lifetap", out var option));
+        Assert.AreEqual("imbued.pseudo_built_in_support", option.StatId);
+        Assert.AreEqual("3918067187", option.OptionId);
+    }
+
+    [TestMethod]
+    public void ImbuedTransfiguredGemSearchesBaseDiscriminatorAndSupport()
+    {
+        var item = Fixture.Parse("poe1/imbued-transfigured-gem.txt", GameId.Poe1);
+        var builder = new TradeQueryBuilder();
+        var options = new TradeQueryOptions(Games.Poe1.FilterLayout, TypeVariant: new TradeTypeVariant("Arc", "alt_y"));
+        var filters = builder.CreateDefaultFilters(item, ImbuedStats(), options);
+
+        var support = filters.Single(f => f.OptionId is not null);
+        Assert.IsTrue(support.Enabled);
+        Assert.AreEqual(FilterKind.Stat, support.Kind);
+
+        var query = builder.Build(item, filters, options)["query"]!;
+        Assert.AreEqual("Arc", query["type"]!["option"]!.GetValue<string>());
+        Assert.AreEqual("alt_y", query["type"]!["discriminator"]!.GetValue<string>());
+        var stat = query["stats"]![0]!["filters"]![0]!;
+        Assert.AreEqual("imbued.pseudo_built_in_support", stat["id"]!.GetValue<string>());
+        Assert.AreEqual(3918067187L, stat["value"]!["option"]!.GetValue<long>());
+        Assert.AreEqual(20d, query["filters"]!["misc_filters"]!["filters"]!["gem_level"]!["min"]!.GetValue<double>());
+    }
+
+    [TestMethod]
+    public void ImbuedGemWithoutStatDataFallsBackToImbuedFlag()
+    {
+        var item = Fixture.Parse("poe1/imbued-transfigured-gem.txt", GameId.Poe1);
+        var builder = new TradeQueryBuilder();
+        var options = new TradeQueryOptions(Games.Poe1.FilterLayout);
+        var filters = builder.CreateDefaultFilters(item, null, options);
+
+        var misc = builder.Build(item, filters, options)["query"]!["filters"]!["misc_filters"]!["filters"]!;
+        Assert.AreEqual("true", misc["gem_imbued"]!["option"]!.GetValue<string>());
+    }
+
+    [TestMethod]
+    public void CorruptedGemWithoutSupportExcludesImbuedCopies()
+    {
+        var item = Fixture.Parse("poe1/war-banner-gem.txt", GameId.Poe1);
+        var builder = new TradeQueryBuilder();
+        var options = new TradeQueryOptions(Games.Poe1.FilterLayout);
+        var filters = builder.CreateDefaultFilters(item, ImbuedStats(), options);
+
+        var misc = builder.Build(item, filters, options)["query"]!["filters"]!["misc_filters"]!["filters"]!;
+        Assert.AreEqual("false", misc["gem_imbued"]!["option"]!.GetValue<string>());
+    }
+
+    [TestMethod]
+    public void TransfiguredGemsAreReadFromTheTradeItemList()
+    {
+        const string json = """
+            {"result":[
+              {"id":"gems","label":"Gems","entries":[
+                {"type":"Arc","text":"Arc"},
+                {"type":"Arc","text":"Arc of Oscillating","disc":"alt_y"},
+                {"type":"Arc","text":"Arc of Surging","disc":"alt_x"}]},
+              {"id":"maps","label":"Maps","entries":[
+                {"type":"Cemetery Map","text":"Cemetery Map (Tier 16)","disc":"warfortheatlas"}]},
+              {"id":"accessory","label":"Accessories","entries":[
+                {"name":"Astramentis","type":"Onyx Amulet","text":"Astramentis Onyx Amulet","flags":{"unique":true}}]}
+            ]}
+            """;
+        using var doc = JsonDocument.Parse(json);
+        var data = TradeDataProvider.ParseItems(doc.RootElement);
+
+        Assert.AreEqual(2, data.Gems.Count);
+        Assert.AreEqual(new TradeTypeVariant("Arc", "alt_y"), data.Gems["arc of oscillating"]);
+        CollectionAssert.AreEqual(new[] { "Astramentis" }, data.Uniques["Onyx Amulet"]);
+    }
+
+    [TestMethod]
+    public void CorpseSearchesItsTypeAndCorpseLevel()
+    {
+        var item = Fixture.Parse("poe1/serpent-warrior-corpse.txt", GameId.Poe1);
+        Assert.AreEqual(ItemCategory.Corpse, item.Category);
+        Assert.IsFalse(Games.Poe1.BulkPricedCategories.Contains(item.Category), "corpses are not exchange currency");
+
+        var builder = new TradeQueryBuilder();
+        var options = new TradeQueryOptions(Games.Poe1.FilterLayout);
+        var filters = builder.CreateDefaultFilters(item, Stats(), options);
+        var query = builder.Build(item, filters, options)["query"]!;
+
+        Assert.AreEqual("Serpent Warrior", query["type"]!.GetValue<string>());
+        Assert.AreEqual(83d, query["filters"]!["misc_filters"]!["filters"]!["ilvl"]!["min"]!.GetValue<double>());
+    }
+
+    [TestMethod]
+    public void HybridAffixIsOneFilterWithBothStats()
+    {
+        var item = Fixture.Parse("poe1/fractured-hybrid-boots-advanced.txt", GameId.Poe1);
+        var stats = new StatIndex(
+        [
+            new TradeStat("fractured.stat_evasion_local", "#% increased Evasion Rating (Local)", "fractured"),
+            new TradeStat("fractured.stat_stun_recovery", "#% increased Stun and Block Recovery", "fractured"),
+            new TradeStat("explicit.stat_life", "+# to maximum Life", "explicit"),
+            new TradeStat("explicit.stat_fire", "+#% to Fire Resistance", "explicit"),
+        ]);
+        var builder = new TradeQueryBuilder();
+        var options = new TradeQueryOptions(Games.Poe1.FilterLayout);
+        var filters = builder.CreateDefaultFilters(item, stats, options);
+
+        var statRows = filters.Where(f => f.Kind == FilterKind.Stat).ToList();
+        Assert.AreEqual(3, statRows.Count, "the hybrid fractured prefix is one row");
+        var hybrid = statRows[0];
+        Assert.AreEqual("fractured.stat_evasion_local", hybrid.StatId);
+        Assert.AreEqual(1, hybrid.Extra.Count);
+        Assert.AreEqual("fractured.stat_stun_recovery", hybrid.Extra[0].StatId);
+        Assert.AreEqual(15d, hybrid.Extra[0].Min, "each line keeps its own minimum");
+
+        var ids = builder.Build(item, filters, options)["query"]!["stats"]![0]!["filters"]!.AsArray()
+            .Select(f => f!["id"]!.GetValue<string>()).ToList();
+        CollectionAssert.IsSubsetOf(new[] { "fractured.stat_evasion_local", "fractured.stat_stun_recovery" }, ids);
+
+        hybrid.Enabled = false;
+        ids = builder.Build(item, filters, options)["query"]!["stats"]![0]!["filters"]!.AsArray()
+            .Select(f => f!["id"]!.GetValue<string>()).ToList();
+        CollectionAssert.DoesNotContain(ids, "fractured.stat_stun_recovery", "one checkbox toggles every line of the affix");
     }
 }

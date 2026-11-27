@@ -71,6 +71,15 @@ public sealed class AppearanceSettings
     public OverlayPlacement OverlayPlacement { get; set; } = OverlayPlacement.NearCursor;
     public bool CloseOverlayOnClickOutside { get; set; } = true;
     public bool CloseOverlayOnGameFocusLoss { get; set; }
+
+    /// <summary>Price-check color of explicit prefixes (needs the advanced item copy). Tuned for dark surfaces.</summary>
+    public string PrefixColor { get; set; } = DefaultPrefixColor;
+
+    /// <summary>Price-check color of explicit suffixes (needs the advanced item copy). Tuned for dark surfaces.</summary>
+    public string SuffixColor { get; set; } = DefaultSuffixColor;
+
+    public const string DefaultPrefixColor = "#8888FF";
+    public const string DefaultSuffixColor = "#6FC8E0";
 }
 
 public sealed class TradeSettings
