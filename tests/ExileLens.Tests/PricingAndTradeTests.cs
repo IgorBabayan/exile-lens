@@ -564,10 +564,12 @@ public sealed class TradeQueryTests
     {
         const string json = """
             {"result":[
-              {"id":"gem","label":"Gems","entries":[
+              {"id":"gems","label":"Gems","entries":[
                 {"type":"Arc","text":"Arc"},
                 {"type":"Arc","text":"Arc of Oscillating","disc":"alt_y"},
                 {"type":"Arc","text":"Arc of Surging","disc":"alt_x"}]},
+              {"id":"maps","label":"Maps","entries":[
+                {"type":"Cemetery Map","text":"Cemetery Map (Tier 16)","disc":"warfortheatlas"}]},
               {"id":"accessory","label":"Accessories","entries":[
                 {"name":"Astramentis","type":"Onyx Amulet","text":"Astramentis Onyx Amulet","flags":{"unique":true}}]}
             ]}
@@ -578,6 +580,22 @@ public sealed class TradeQueryTests
         Assert.AreEqual(2, data.Gems.Count);
         Assert.AreEqual(new TradeTypeVariant("Arc", "alt_y"), data.Gems["arc of oscillating"]);
         CollectionAssert.AreEqual(new[] { "Astramentis" }, data.Uniques["Onyx Amulet"]);
+    }
+
+    [TestMethod]
+    public void CorpseSearchesItsTypeAndCorpseLevel()
+    {
+        var item = Fixture.Parse("poe1/serpent-warrior-corpse.txt", GameId.Poe1);
+        Assert.AreEqual(ItemCategory.Corpse, item.Category);
+        Assert.IsFalse(Games.Poe1.BulkPricedCategories.Contains(item.Category), "corpses are not exchange currency");
+
+        var builder = new TradeQueryBuilder();
+        var options = new TradeQueryOptions(Games.Poe1.FilterLayout);
+        var filters = builder.CreateDefaultFilters(item, Stats(), options);
+        var query = builder.Build(item, filters, options)["query"]!;
+
+        Assert.AreEqual("Serpent Warrior", query["type"]!.GetValue<string>());
+        Assert.AreEqual(83d, query["filters"]!["misc_filters"]!["filters"]!["ilvl"]!["min"]!.GetValue<double>());
     }
 
     [TestMethod]

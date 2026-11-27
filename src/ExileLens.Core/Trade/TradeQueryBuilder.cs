@@ -168,6 +168,11 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
         {
             filters.Add(new SearchFilter { Key = "ilvl", Kind = FilterKind.ItemLevel, Label = "Item level", Min = ilvl, Enabled = false });
         }
+        else if (item.Category == ItemCategory.Corpse && item.ItemLevel is { } corpseLevel)
+        {
+            // A corpse's item level is its corpse level, which drives its value.
+            filters.Add(new SearchFilter { Key = "ilvl", Kind = FilterKind.ItemLevel, Label = "Corpse level", Min = corpseLevel, Enabled = true });
+        }
 
         var isGem = item.Category == ItemCategory.Gem;
         if (isGem)
@@ -333,12 +338,13 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
             switch (f.Kind)
             {
                 case FilterKind.Stat when f.StatId is not null:
-                    statFilters.Add(StatNode(f));
+                    // JsonNode-typed Add: the generic Add<T> is not trim/AOT safe.
+                    statFilters.Add((JsonNode)StatNode(f));
                     foreach (var line in f.Extra)
                     {
                         if (line.StatId is not null)
                         {
-                            statFilters.Add(StatNode(line));
+                            statFilters.Add((JsonNode)StatNode(line));
                         }
                     }
 

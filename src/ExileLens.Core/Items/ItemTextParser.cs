@@ -468,6 +468,12 @@ public sealed class ItemTextParser : IItemParser
             return ItemCategory.Fragment;
         }
 
+        // "Corpses" copy as Rarity: Currency but are single trade items, not exchange currency.
+        if (cls.Contains("Corpse", StringComparison.OrdinalIgnoreCase))
+        {
+            return ItemCategory.Corpse;
+        }
+
         var isStackable = cls.Contains("Currency", StringComparison.OrdinalIgnoreCase) || cls.Contains("Socketable", StringComparison.OrdinalIgnoreCase)
                           || cls.Contains("Omen", StringComparison.OrdinalIgnoreCase) || rarity == ItemRarity.Currency;
         if (isStackable)

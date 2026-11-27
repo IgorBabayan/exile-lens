@@ -67,6 +67,9 @@ public enum ItemCategory
     SoulCore,
     Relic,
     Other,
+
+    /// <summary>PoE 1 Necropolis corpse: one trade item per monster, priced by corpse (item) level.</summary>
+    Corpse,
 }
 
 /// <summary>One modifier line as it appears on the item.</summary>

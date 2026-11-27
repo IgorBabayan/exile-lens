@@ -73,6 +73,7 @@ public sealed class Poe1GameModule(IAppPaths paths) : IGameModule
     {
         ItemCategory.Equipment, ItemCategory.Jewel, ItemCategory.Flask, ItemCategory.Currency, ItemCategory.Fragment, ItemCategory.Map,
         ItemCategory.Gem, ItemCategory.DivinationCard, ItemCategory.Essence, ItemCategory.Scarab, ItemCategory.Omen, ItemCategory.Relic,
+        ItemCategory.Corpse,
     }.ToFrozenSet();
 
     public RewardRuleSet RewardRules => _rewards.Value;

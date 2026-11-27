@@ -183,7 +183,8 @@ public sealed class TradeDataProvider(HttpClient http, RateLimiter limiter, IApp
     private async Task<TradeItemData> LoadItemDataAsync(IGameModule game)
     {
         var uniquesPath = Path.Combine(paths.CacheDirectory, $"trade-uniques-{game.NinjaSegment}.json");
-        var gemsPath = Path.Combine(paths.CacheDirectory, $"trade-gems-{game.NinjaSegment}.json");
+        // "v2": the first release could write an empty map that would otherwise be trusted for a day.
+        var gemsPath = Path.Combine(paths.CacheDirectory, $"trade-gems-v2-{game.NinjaSegment}.json");
         var now = time.GetUtcNow();
         if (File.Exists(uniquesPath) && now - File.GetLastWriteTimeUtc(uniquesPath) < UniquesMaxAge
             && File.Exists(gemsPath) && now - File.GetLastWriteTimeUtc(gemsPath) < UniquesMaxAge
@@ -366,7 +367,8 @@ public sealed class TradeDataProvider(HttpClient http, RateLimiter limiter, IApp
     /// One pass over the trade item list:
     /// unique entries ({"name", "type", "flags": {"unique": true}}) → base → unique names (variants of one unique, legacy
     /// versions or "disc" discriminators, share a name and are listed once);
-    /// gem entries with a discriminator ({"type": "Arc", "text": "Arc of Oscillating", "disc": "alt_y"}) → transfigured gems.
+    /// entries "&lt;base&gt; of &lt;variant&gt;" with a discriminator ({"type": "Arc", "text": "Arc of Oscillating", "disc": "alt_y"})
+    /// → transfigured gems.
     /// </summary>
     internal static TradeItemData ParseItems(JsonElement root)
     {
@@ -384,7 +386,6 @@ public sealed class TradeDataProvider(HttpClient http, RateLimiter limiter, IApp
                 continue;
             }
 
-            var isGemGroup = group.TryGetProperty("id", out var gid) && gid.ValueKind == JsonValueKind.String && gid.ValueEquals("gem");
             foreach (var e in entries.EnumerateArray())
             {
                 if (!e.TryGetProperty("type", out var typeEl) || typeEl.GetString() is not { Length: > 0 } type)
@@ -392,15 +393,15 @@ public sealed class TradeDataProvider(HttpClient http, RateLimiter limiter, IApp
                     continue;
                 }
 
-                if (isGemGroup)
+                // Transfigured gem: "<base> of <variant>" with a discriminator. Recognised by shape, not by the group id,
+                // which is not a stable contract of the endpoint.
+                if (e.TryGetProperty("disc", out var discEl) && discEl.GetString() is { Length: > 0 } disc
+                    && !e.TryGetProperty("name", out _)
+                    && e.TryGetProperty("text", out var textEl) && textEl.GetString() is { } text
+                    && text.Length > type.Length + 4 && text.StartsWith(type, StringComparison.Ordinal)
+                    && text.AsSpan(type.Length).StartsWith(" of ", StringComparison.Ordinal))
                 {
-                    if (e.TryGetProperty("disc", out var discEl) && discEl.GetString() is { Length: > 0 } disc
-                        && e.TryGetProperty("text", out var textEl) && textEl.GetString() is { Length: > 0 } text
-                        && !string.Equals(text, type, StringComparison.OrdinalIgnoreCase))
-                    {
-                        (gems ??= new Dictionary<string, TradeTypeVariant>(StringComparer.OrdinalIgnoreCase)).TryAdd(text, new TradeTypeVariant(type, disc));
-                    }
-
+                    (gems ??= new Dictionary<string, TradeTypeVariant>(StringComparer.OrdinalIgnoreCase)).TryAdd(text, new TradeTypeVariant(type, disc));
                     continue;
                 }
 

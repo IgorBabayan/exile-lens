@@ -1,0 +1,14 @@
+Item Class: Corpses
+Rarity: Currency
+Serpent Warrior
+--------
+Corpse Level: 83
+Monster Category: Eldritch
+--------
+Item Level: 83
+--------
+Attacks with swords when not Defensive
+Fires Mortars when Defensive
+Inflicts Withered for 2 seconds on Hit
+--------
+Right click this item to create this corpse.
