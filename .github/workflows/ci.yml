@@ -1,7 +1,10 @@
 name: CI
 
 on:
+  # PRs into `release` are built and tested by release.yml after merge; skip them here
+  # so a development -> release PR doesn't produce a second, duplicate build.
   pull_request:
+    branches-ignore: [release]
   push:
     branches: [development, master]
 
