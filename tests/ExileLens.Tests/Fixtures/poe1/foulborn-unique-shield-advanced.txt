@@ -1,0 +1,33 @@
+Item Class: Shields
+Rarity: Unique
+Foulborn Esh's Visage
+Vaal Spirit Shield
+--------
+Chance to Block: 24%
+Energy Shield: 219 (augmented)
+--------
+Requirements:
+Level: 62
+Int: 159
+--------
+Item Level: 84
+--------
+{ Implicit Modifier }
+9(5-10)% increased Spell Damage (implicit)
+--------
+{ Unique Modifier }
+247(240-260)% increased Energy Shield
+{ Unique Modifier — Life }
++86(70-90) to maximum Life
+{ Unique Modifier — Chaos, Resistance }
++17(17-23)% to Chaos Resistance
+{ Unique Modifier }
+Chaos Damage taken does not bypass Energy Shield while not on Low Life
+{ Unique Modifier — Elemental, Lightning, Ailment }
+Reflect Shocks applied to you to all Enemies within 3 metres
+{ Foulborn Unique Modifier }
+Damage cannot be Reflected
+--------
+She could see what she was not;
+a silhouette wreathed in light.
+And she was still.

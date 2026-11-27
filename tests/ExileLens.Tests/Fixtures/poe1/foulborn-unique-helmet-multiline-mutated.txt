@@ -1,0 +1,24 @@
+Item Class: Helmets
+Rarity: Unique
+Foulborn Kitava's Thirst
+Zealot Helmet
+--------
+Armour: 242 (augmented)
+Energy Shield: 51 (augmented)
+--------
+Requirements:
+Level: 44
+Str: 50
+Int: 50
+--------
+Sockets: B-R-B-B
+--------
+Item Level: 81
+--------
+15% reduced Cast Speed
+77% increased Armour and Energy Shield
++34 to maximum Mana
+50% chance to Trigger Socketed Spells when you Spend at least 200 Life on an (mutated)
+Upfront Cost to Use or Trigger a Skill, with a 0.1 second Cooldown (mutated)
+--------
+Tukohama, Tawhoa and Kitava went to war

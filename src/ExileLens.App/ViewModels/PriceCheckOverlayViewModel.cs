@@ -50,15 +50,16 @@ public sealed partial class FilterItemViewModel : ObservableObject
 
     public bool HasMax => Filter.Kind is FilterKind.MapTier or FilterKind.GemLevel or FilterKind.ItemLevel;
 
-    /// <summary>Origin tag shown before the modifier text ("fractured ", "crafted ", ...); null for plain explicits.</summary>
+    /// <summary>Origin tag shown before the modifier text ("fractured: ", "crafted: ", ...); null for plain explicits.</summary>
     public string? KindTag => Filter.ModifierKind switch
     {
-        ModifierKind.Implicit => "implicit ",
-        ModifierKind.Crafted => "crafted ",
-        ModifierKind.Fractured => "fractured ",
-        ModifierKind.Enchant => "enchant ",
-        ModifierKind.Rune => "rune ",
-        ModifierKind.Desecrated => "desecrated ",
+        ModifierKind.Implicit => "implicit: ",
+        ModifierKind.Crafted => "crafted: ",
+        ModifierKind.Fractured => "fractured: ",
+        ModifierKind.Enchant => "enchant: ",
+        ModifierKind.Rune => "rune: ",
+        ModifierKind.Desecrated => "desecrated: ",
+        ModifierKind.Mutated => "foulborn: ",
         _ => null,
     };
 
@@ -67,6 +68,15 @@ public sealed partial class FilterItemViewModel : ObservableObject
 
     /// <summary>Drives the in-game crafted color on the modifier line.</summary>
     public bool IsCrafted => Filter.ModifierKind == ModifierKind.Crafted;
+
+    /// <summary>Drives the in-game Foulborn (mutated) color on the modifier line.</summary>
+    public bool IsFoulborn => Filter.ModifierKind == ModifierKind.Mutated;
+
+    /// <summary>Plain explicit prefix (advanced copy only): tinted with the prefix color from the settings.</summary>
+    public bool IsPrefix => Filter.Slot == AffixSlot.Prefix && Filter.ModifierKind == ModifierKind.Explicit;
+
+    /// <summary>Plain explicit suffix (advanced copy only): tinted with the suffix color from the settings.</summary>
+    public bool IsSuffix => Filter.Slot == AffixSlot.Suffix && Filter.ModifierKind == ModifierKind.Explicit;
 
     [ObservableProperty]
     private bool _enabled;

@@ -112,6 +112,7 @@ public sealed class StatIndex
         ModifierKind.Desecrated => "desecrated",
         ModifierKind.Scourge => "scourge",
         ModifierKind.Crucible => "crucible",
+        ModifierKind.Mutated => "mutated",
         _ => "explicit",
     };
 
@@ -123,7 +124,7 @@ public sealed class StatIndex
             return true;
         }
 
-        // Desecrated/fractured lines are often only listed as explicit in older datasets.
+        // Desecrated/fractured/mutated lines are often only listed as explicit in the datasets.
         return type != "explicit" && TryResolve("explicit", modifier.Pattern, preferLocal, out stat);
     }
 

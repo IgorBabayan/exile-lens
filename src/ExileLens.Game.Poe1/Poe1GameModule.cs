@@ -37,7 +37,8 @@ public sealed class Poe1GameModule(IAppPaths paths) : IGameModule
         LinksKey: "links",
         MapGroup: "map_filters",
         MapTierKey: "map_tier",
-        FoulbornGroup: "misc_filters");
+        FoulbornGroup: "misc_filters",
+        SynthesisedGroup: "misc_filters");
 
     public string DefaultValuationCurrency => "Chaos Orb";
 

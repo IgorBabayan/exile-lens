@@ -21,6 +21,7 @@ public static class ModifierText
         (" (desecrated)", ModifierKind.Desecrated),
         (" (scourge)", ModifierKind.Scourge),
         (" (crucible)", ModifierKind.Crucible),
+        (" (mutated)", ModifierKind.Mutated),
     ];
 
     /// <summary>Strips a trailing kind marker such as " (implicit)" and reports the kind.</summary>

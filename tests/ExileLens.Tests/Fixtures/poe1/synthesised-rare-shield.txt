@@ -1,0 +1,25 @@
+Item Class: Shields
+Rarity: Rare
+Foe Song
+Synthesised Harmonic Spirit Shield
+--------
+Chance to Block: 23%
+Energy Shield: 128 (augmented)
+--------
+Requirements:
+Level: 65
+Int: 159
+--------
+Sockets: B-B-B
+--------
+Item Level: 84
+--------
+Recover 5% of Life when you Block (implicit)
+--------
+36% increased Spell Critical Strike Chance
+110% increased Energy Shield
++1% to maximum Lightning Resistance
+8% increased Stun and Block Recovery
++13% chance to Suppress Spell Damage
+--------
+Synthesised Item

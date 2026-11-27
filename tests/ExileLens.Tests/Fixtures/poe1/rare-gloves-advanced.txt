@@ -1,0 +1,23 @@
+Item Class: Gloves
+Rarity: Rare
+Grim Grasp
+Sorcerer Gloves
+--------
+Energy Shield: 98 (augmented)
+--------
+Requirements:
+Level: 69
+Int: 97
+--------
+Item Level: 85
+--------
+{ Fractured Prefix Modifier "Seething" (Tier: 1) — Life }
++80(80-89) to maximum Life (fractured)
+{ Prefix Modifier "Blazing" (Tier: 2) — Defences, Energy Shield }
++40(38-43) to maximum Energy Shield
+{ Suffix Modifier "of the Kiln" (Tier: 3) — Elemental, Fire, Resistance }
++32(30-35)% to Fire Resistance
+{ Master Crafted Suffix Modifier "of Craft" (Rank: 2) — Speed }
+10(9-10)% increased Attack Speed (crafted)
+--------
+Fractured Item

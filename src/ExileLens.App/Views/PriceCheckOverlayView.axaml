@@ -27,6 +27,19 @@
     <Style Selector="TextBlock.mod.crafted Run.tag">
       <Setter Property="Foreground" Value="{DynamicResource ModCraftedBrush}" />
     </Style>
+    <Style Selector="TextBlock.mod.foulborn">
+      <Setter Property="Foreground" Value="{DynamicResource ModFoulbornBrush}" />
+    </Style>
+    <Style Selector="TextBlock.mod.foulborn Run.tag">
+      <Setter Property="Foreground" Value="{DynamicResource ModFoulbornBrush}" />
+    </Style>
+    <!-- Prefix/suffix colors come from the settings (App.ApplyAppearance writes the brushes; no per-row work). -->
+    <Style Selector="TextBlock.mod.prefix">
+      <Setter Property="Foreground" Value="{DynamicResource ModPrefixBrush}" />
+    </Style>
+    <Style Selector="TextBlock.mod.suffix">
+      <Setter Property="Foreground" Value="{DynamicResource ModSuffixBrush}" />
+    </Style>
   </UserControl.Styles>
 
   <Grid RowDefinitions="Auto,*,Auto">
@@ -149,7 +162,9 @@
             <CheckBox IsChecked="{Binding Enabled}" MinHeight="28">
               <!-- One wrapping line: origin tag first, then the modifier, tinted like the game tooltip. -->
               <TextBlock Classes="mod" TextWrapping="Wrap" MaxWidth="290"
-                         Classes.fractured="{Binding IsFractured}" Classes.crafted="{Binding IsCrafted}">
+                         Classes.fractured="{Binding IsFractured}" Classes.crafted="{Binding IsCrafted}"
+                         Classes.foulborn="{Binding IsFoulborn}"
+                         Classes.prefix="{Binding IsPrefix}" Classes.suffix="{Binding IsSuffix}">
                 <Run Classes="tag" Text="{Binding KindTag}" /><Run Text="{Binding Label}" />
               </TextBlock>
             </CheckBox>

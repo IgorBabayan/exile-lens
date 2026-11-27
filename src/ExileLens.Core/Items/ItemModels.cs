@@ -30,6 +30,9 @@ public enum ModifierKind
     Desecrated,
     Scourge,
     Crucible,
+
+    /// <summary>PoE 1 Foulborn (mutated) unique modifier: "(mutated)" in the simple copy, "{ Foulborn Unique Modifier }" in the advanced one.</summary>
+    Mutated,
 }
 
 public enum AffixSlot

@@ -17,6 +17,9 @@ public sealed class ItemTextParser : IItemParser
 {
     private const string Separator = "--------";
 
+    /// <summary>PoE 1 synthesised items carry this prefix on the base line; the trade API only knows the plain base.</summary>
+    private const string SynthesisedPrefix = "Synthesised ";
+
     private static readonly string[] DescriptionPrefixes =
     [
         "Right click", "Place into", "Travel to this", "Can be used in", "Stack Size", "Shift click",
@@ -291,6 +294,13 @@ public sealed class ItemTextParser : IItemParser
             modifiers.RemoveRange(lastModSectionStart, modifiers.Count - lastModSectionStart);
         }
 
+        // "Synthesised Harmonic Spirit Shield" → "Harmonic Spirit Shield" (the trade API rejects the prefixed base).
+        if (baseType.Length > SynthesisedPrefix.Length && baseType.StartsWith(SynthesisedPrefix, StringComparison.Ordinal))
+        {
+            baseType = baseType[SynthesisedPrefix.Length..];
+            synthesised = true;
+        }
+
         var category = DetectCategory(itemClass, baseType, rarity);
 
         if (rarity == ItemRarity.Unknown)
@@ -543,6 +553,10 @@ public sealed class ItemTextParser : IItemParser
         else if (inner.StartsWith("Desecrated", StringComparison.Ordinal))
         {
             kind = ModifierKind.Desecrated;
+        }
+        else if (inner.StartsWith("Foulborn", StringComparison.Ordinal))
+        {
+            kind = ModifierKind.Mutated;
         }
 
         name = null;

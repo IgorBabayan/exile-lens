@@ -31,6 +31,9 @@ public sealed class SearchFilter
     public double? RolledValue { get; init; }
     public bool? BoolValue { get; set; }
     public ModifierKind? ModifierKind { get; init; }
+
+    /// <summary>Prefix/suffix of a stat filter; known only from the advanced copy (null otherwise).</summary>
+    public AffixSlot? Slot { get; init; }
 }
 
 /// <summary>Per-game layout of the official trade query (filter group names differ between PoE 1 and PoE 2).</summary>
@@ -44,7 +47,8 @@ public sealed record TradeFilterLayout(
     string? LinksKey,
     string MapGroup,
     string MapTierKey,
-    string? FoulbornGroup = null);
+    string? FoulbornGroup = null,
+    string? SynthesisedGroup = null);
 
 public interface ITradeQueryBuilder
 {
@@ -78,6 +82,7 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
         if (stats is not null && item.IsIdentified && item.Category is ItemCategory.Equipment or ItemCategory.Jewel or ItemCategory.Flask or ItemCategory.Charm or ItemCategory.Tablet or ItemCategory.Relic)
         {
             var mods = item.Modifiers;
+            var slots = item.HasAdvancedAffixInfo ? SlotsByLine(item) : null;
             for (var i = 0; i < mods.Count;)
             {
                 var mod = mods[i];
@@ -114,6 +119,7 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
                     RolledValue = rolled,
                     Min = min,
                     ModifierKind = mod.Kind,
+                    Slot = slots is not null ? slots[i] : null,
                     Enabled = !isUnique && options.EnableModifiersByDefault && mod.Kind != ModifierKind.Enchant,
                 });
                 i += lineCount;
@@ -162,6 +168,29 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
         return filters;
     }
 
+    /// <summary>Prefix/suffix of every modifier line, from the advanced-copy affix headers (one array, no per-line lookups).</summary>
+    private static AffixSlot?[] SlotsByLine(ParsedItem item)
+    {
+        var slots = new AffixSlot?[item.Modifiers.Count];
+        foreach (var affix in item.Affixes)
+        {
+            if (affix.Slot is not (AffixSlot.Prefix or AffixSlot.Suffix))
+            {
+                continue;
+            }
+
+            foreach (var line in affix.LineIndexes)
+            {
+                if ((uint)line < (uint)slots.Length)
+                {
+                    slots[line] = affix.Slot;
+                }
+            }
+        }
+
+        return slots;
+    }
+
     public JsonObject Build(ParsedItem item, IReadOnlyList<SearchFilter> filters, TradeQueryOptions options)
     {
         var layout = options.Layout;
@@ -202,6 +231,11 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
         if (layout.FoulbornGroup is { } foulbornGroup && item.Rarity == ItemRarity.Unique && item.Name is not null)
         {
             Group(foulbornGroup)["foulborn_item"] = new JsonObject { ["option"] = item.IsFoulborn ? "true" : "false" };
+        }
+
+        if (layout.SynthesisedGroup is { } synthesisedGroup && item.IsSynthesised)
+        {
+            Group(synthesisedGroup)["synthesised_item"] = new JsonObject { ["option"] = "true" };
         }
 
         if (options.PriceOption is { } priceOption)

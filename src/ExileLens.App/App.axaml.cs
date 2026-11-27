@@ -157,7 +157,18 @@ public sealed partial class App : Avalonia.Application
             _ => ThemeVariant.Default,
         };
 
-        if (Color.TryParse(settings.Appearance.AccentColor, out var accent) && Resources is ResourceDictionary root)
+        var hasAccent = Color.TryParse(settings.Appearance.AccentColor, out var accent);
+        if (!Color.TryParse(settings.Appearance.PrefixColor, out var prefix))
+        {
+            prefix = Color.Parse(AppearanceSettings.DefaultPrefixColor);
+        }
+
+        if (!Color.TryParse(settings.Appearance.SuffixColor, out var suffix))
+        {
+            suffix = Color.Parse(AppearanceSettings.DefaultSuffixColor);
+        }
+
+        if (Resources is ResourceDictionary root)
         {
             foreach (var provider in root.MergedDictionaries)
             {
@@ -175,10 +186,18 @@ public sealed partial class App : Avalonia.Application
                         continue;
                     }
 
-                    var tuned = variant == ThemeVariant.Dark ? Lighten(accent, 0.08) : accent;
-                    rd["AccentColor"] = tuned;
-                    rd["AccentBrush"] = new SolidColorBrush(tuned);
-                    rd["AccentHoverBrush"] = new SolidColorBrush(variant == ThemeVariant.Dark ? Lighten(tuned, 0.08) : Lighten(tuned, -0.08));
+                    var isDark = variant == ThemeVariant.Dark;
+                    if (hasAccent)
+                    {
+                        var tuned = isDark ? Lighten(accent, 0.08) : accent;
+                        rd["AccentColor"] = tuned;
+                        rd["AccentBrush"] = new SolidColorBrush(tuned);
+                        rd["AccentHoverBrush"] = new SolidColorBrush(isDark ? Lighten(tuned, 0.08) : Lighten(tuned, -0.08));
+                    }
+
+                    // Prefix/suffix colors are picked for the dark overlay; darken them for light surfaces (like map colors).
+                    rd["ModPrefixBrush"] = new SolidColorBrush(isDark ? prefix : Lighten(prefix, -0.28));
+                    rd["ModSuffixBrush"] = new SolidColorBrush(isDark ? suffix : Lighten(suffix, -0.28));
                 }
             }
         }
