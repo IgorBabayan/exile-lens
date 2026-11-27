@@ -9,15 +9,22 @@
     so only the listings scroll; embedded in a page the star row simply sizes to content.
   -->
   <UserControl.Styles>
-    <!-- Modifier origin tag and in-game origin colors (order matters: the origin styles override the tag style). -->
+    <!-- Modifier origin tag and in-game origin colors (order matters: the origin styles override the tag style;
+         TextBlock and Run selectors stay separate so each setter resolves Foreground on its own type). -->
     <Style Selector="TextBlock.mod Run.tag">
       <Setter Property="FontSize" Value="{DynamicResource FontSizeCaption}" />
       <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
     </Style>
-    <Style Selector="TextBlock.mod.fractured, TextBlock.mod.fractured Run.tag">
+    <Style Selector="TextBlock.mod.fractured">
       <Setter Property="Foreground" Value="{DynamicResource ModFracturedBrush}" />
     </Style>
-    <Style Selector="TextBlock.mod.crafted, TextBlock.mod.crafted Run.tag">
+    <Style Selector="TextBlock.mod.fractured Run.tag">
+      <Setter Property="Foreground" Value="{DynamicResource ModFracturedBrush}" />
+    </Style>
+    <Style Selector="TextBlock.mod.crafted">
+      <Setter Property="Foreground" Value="{DynamicResource ModCraftedBrush}" />
+    </Style>
+    <Style Selector="TextBlock.mod.crafted Run.tag">
       <Setter Property="Foreground" Value="{DynamicResource ModCraftedBrush}" />
     </Style>
   </UserControl.Styles>
