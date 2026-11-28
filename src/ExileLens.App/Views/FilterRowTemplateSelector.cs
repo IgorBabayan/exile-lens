@@ -14,7 +14,7 @@ public sealed class FilterRowTemplateSelector : IDataTemplate
 
     public IDataTemplate? MultiLine { get; set; }
 
-    /// <summary>Mercenary Warrant skill with its linked supports as chips (grouped like the in-game Mercenary panel).</summary>
+    /// <summary>Mercenary Warrant skill with its linked supports listed under it (grouped like the in-game Mercenary panel).</summary>
     public IDataTemplate? MercenarySkill { get; set; }
 
     public Control? Build(object? param) => (param switch

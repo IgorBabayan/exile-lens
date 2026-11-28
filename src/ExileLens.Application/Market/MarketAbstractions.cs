@@ -57,8 +57,9 @@ public interface ITradeDataProvider
         Task.FromResult<IReadOnlyDictionary<string, string[]>>(new Dictionary<string, string[]>());
 
     /// <summary>
-    /// Transfigured gem name (case-insensitive, e.g. "Arc of Oscillating") to the base + discriminator the trade API
-    /// searches it by. Empty when unavailable or for games without transfigured gems; never throws for network errors.
+    /// Transfigured gem name (case-insensitive, e.g. "Arc of Oscillating") or Mercenary Warrant build ("Mercenary Warrant
+    /// (Infamous Flamequiver)") to the type + discriminator the trade API searches it by. Empty when unavailable or for games
+    /// without them; never throws for network errors.
     /// </summary>
     Task<IReadOnlyDictionary<string, TradeTypeVariant>> GetGemVariantsAsync(IGameModule game, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyDictionary<string, TradeTypeVariant>>(new Dictionary<string, TradeTypeVariant>());

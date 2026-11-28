@@ -46,34 +46,14 @@
     <Style Selector="TextBlock.mod.suffix">
       <Setter Property="Foreground" Value="{DynamicResource ModSuffixBrush}" />
     </Style>
-    <!-- Mercenary Warrant: one group per skill, linked supports as toggle chips with the in-game tier numeral. -->
+    <!-- Mercenary Warrant: one group per skill, its linked supports listed under it with the in-game tier numeral. -->
     <Style Selector="Border.merc-skill">
       <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="{DynamicResource RadiusSmall}" />
-      <Setter Property="Padding" Value="8,4" />
+      <Setter Property="Padding" Value="8,2" />
       <Setter Property="Margin" Value="0,2" />
-    </Style>
-    <Style Selector="ToggleButton.support">
-      <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="Padding" Value="6,2" />
-      <Setter Property="MinHeight" Value="0" />
-      <Setter Property="FontSize" Value="12" />
-      <Setter Property="Margin" Value="0,2,4,2" />
-      <Setter Property="CornerRadius" Value="{DynamicResource RadiusSmall}" />
-    </Style>
-    <Style Selector="ToggleButton.support:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-    </Style>
-    <Style Selector="ToggleButton.support:checked /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     </Style>
     <Style Selector="TextBlock.tier">
       <Setter Property="FontSize" Value="10" />
@@ -251,34 +231,30 @@
               </Grid>
             </DataTemplate>
           </views:FilterRowTemplateSelector.MultiLine>
-          <!-- Mercenary skill: name on the left, its linked supports wrap on the right (like the in-game panel). -->
+          <!-- Mercenary skill: its checkbox, then one checkbox per linked support (indented), like the in-game panel. -->
           <views:FilterRowTemplateSelector.MercenarySkill>
             <DataTemplate x:DataType="vm:FilterItemViewModel">
               <Border Classes="merc-skill">
-                <Grid ColumnDefinitions="130,*">
-                  <CheckBox IsChecked="{Binding Enabled}" MinHeight="26" VerticalAlignment="Top">
+                <StackPanel>
+                  <CheckBox IsChecked="{Binding Enabled}" IsEnabled="{Binding IsSearchable}" MinHeight="28"
+                            ToolTip.Tip="{Binding MercenaryTip}">
                     <TextBlock Classes="mod" Text="{Binding Label}" FontWeight="SemiBold" TextWrapping="Wrap" />
                   </CheckBox>
-                  <ItemsControl Grid.Column="1" ItemsSource="{Binding Supports}" IsVisible="{Binding HasSupports}"
-                                Margin="6,0,0,0" VerticalAlignment="Center">
-                    <ItemsControl.ItemsPanel>
-                      <ItemsPanelTemplate>
-                        <WrapPanel />
-                      </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
+                  <ItemsControl ItemsSource="{Binding Supports}" IsVisible="{Binding HasSupports}" Margin="24,0,0,2">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate x:DataType="vm:FilterItemViewModel">
-                        <ToggleButton Classes="support" IsChecked="{Binding Enabled}" ToolTip.Tip="{Binding SupportTip}">
-                          <StackPanel Orientation="Horizontal" Spacing="5">
-                            <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+                        <CheckBox IsChecked="{Binding Enabled}" IsEnabled="{Binding IsSearchable}" MinHeight="24"
+                                  ToolTip.Tip="{Binding MercenaryTip}">
+                          <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Classes="mod" Text="{Binding Label}" VerticalAlignment="Center" />
                             <TextBlock Classes="tier" Classes.top="{Binding IsTopTier}" Text="{Binding TierText}"
                                        IsVisible="{Binding TierText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                           </StackPanel>
-                        </ToggleButton>
+                        </CheckBox>
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>
-                </Grid>
+                </StackPanel>
               </Border>
             </DataTemplate>
           </views:FilterRowTemplateSelector.MercenarySkill>

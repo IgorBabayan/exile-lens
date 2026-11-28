@@ -184,7 +184,8 @@ public sealed class TradeDataProvider(HttpClient http, RateLimiter limiter, IApp
     {
         var uniquesPath = Path.Combine(paths.CacheDirectory, $"trade-uniques-{game.NinjaSegment}.json");
         // "v2": the first release could write an empty map that would otherwise be trusted for a day.
-        var gemsPath = Path.Combine(paths.CacheDirectory, $"trade-gems-v2-{game.NinjaSegment}.json");
+        // "v3": the map also holds the Mercenary Warrant builds.
+        var gemsPath = Path.Combine(paths.CacheDirectory, $"trade-gems-v3-{game.NinjaSegment}.json");
         var now = time.GetUtcNow();
         if (File.Exists(uniquesPath) && now - File.GetLastWriteTimeUtc(uniquesPath) < UniquesMaxAge
             && File.Exists(gemsPath) && now - File.GetLastWriteTimeUtc(gemsPath) < UniquesMaxAge
@@ -360,6 +361,8 @@ public sealed class TradeDataProvider(HttpClient http, RateLimiter limiter, IApp
         }
     }
 
+    private const string MercenaryWarrantPrefix = MercenaryInfo.WarrantBaseType + " (";
+
     /// <summary>Unique names per base from the trade item list (see <see cref="ParseItems"/>).</summary>
     internal static IReadOnlyDictionary<string, string[]> ParseUniques(JsonElement root) => ParseItems(root).Uniques;
 
@@ -368,7 +371,8 @@ public sealed class TradeDataProvider(HttpClient http, RateLimiter limiter, IApp
     /// unique entries ({"name", "type", "flags": {"unique": true}}) → base → unique names (variants of one unique, legacy
     /// versions or "disc" discriminators, share a name and are listed once);
     /// entries "&lt;base&gt; of &lt;variant&gt;" with a discriminator ({"type": "Arc", "text": "Arc of Oscillating", "disc": "alt_y"})
-    /// → transfigured gems.
+    /// → transfigured gems; Mercenary Warrant builds ({"type": "EleBowRangerClonesNoble", "text": "Mercenary Warrant (Infamous
+    /// Manyshot)", "disc": "mercenary_warrant"}) → the same map, keyed by their text.
     /// </summary>
     internal static TradeItemData ParseItems(JsonElement root)
     {
@@ -402,6 +406,16 @@ public sealed class TradeDataProvider(HttpClient http, RateLimiter limiter, IApp
                     && text.AsSpan(type.Length).StartsWith(" of ", StringComparison.Ordinal))
                 {
                     (gems ??= new Dictionary<string, TradeTypeVariant>(StringComparer.OrdinalIgnoreCase)).TryAdd(text, new TradeTypeVariant(type, disc));
+                    continue;
+                }
+
+                // Mercenary Warrant build: one internal type per build, all under one discriminator.
+                if (e.TryGetProperty("disc", out var warrantDisc) && warrantDisc.GetString() is { Length: > 0 } wdisc
+                    && e.TryGetProperty("text", out var warrantText) && warrantText.GetString() is { } wtext
+                    && wtext.Length > MercenaryWarrantPrefix.Length + 1 && wtext.EndsWith(')')
+                    && wtext.StartsWith(MercenaryWarrantPrefix, StringComparison.Ordinal))
+                {
+                    (gems ??= new Dictionary<string, TradeTypeVariant>(StringComparer.OrdinalIgnoreCase)).TryAdd(wtext, new TradeTypeVariant(type, wdisc));
                     continue;
                 }
 

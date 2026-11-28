@@ -103,6 +103,9 @@ public sealed record MercenaryInfo(string? Name, string? Build, int? Level, IRea
 
     /// <summary>Infamous builds ("Infamous Flamequiver") are the stronger, more valuable variants.</summary>
     public bool IsInfamous => Build is { } b && b.StartsWith("Infamous ", StringComparison.Ordinal);
+
+    /// <summary>The build's entry in the trade item list: "Mercenary Warrant (Infamous Flamequiver)"; null without a build.</summary>
+    public string? TradeItemText => Build is { } b ? string.Concat(WarrantBaseType, " (", b, ")") : null;
 }
 
 public sealed record SocketInfo(int Count, int LargestLinkGroup, string Raw)

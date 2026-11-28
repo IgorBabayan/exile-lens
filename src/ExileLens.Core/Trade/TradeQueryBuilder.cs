@@ -240,24 +240,21 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
     }
 
     /// <summary>
-    /// Mercenary Warrant: one row per skill, followed by one row per linked support. The first skill is the build's main
-    /// skill and drives the price, so it is searched by default together with its top-tier (3+) supports.
+    /// Mercenary Warrant: one row per skill, followed by one row per linked support, in copy order. Lines the trade data
+    /// does not know are listed too (no stat id, never searched) so the list always mirrors the warrant. The first skill
+    /// is the build's main skill: searched by default together with its top-tier (3+) supports, as one linked group.
     /// </summary>
     private static List<SearchFilter> CreateMercenaryFilters(ParsedItem item, StatIndex? stats, TradeQueryOptions options)
     {
         var filters = new List<SearchFilter>(24);
-        if (item.Mercenary is { } merc && stats is not null)
+        if (item.Mercenary is { } merc)
         {
             var skills = merc.Skills;
             for (var s = 0; s < skills.Count; s++)
             {
                 var skill = skills[s];
-                if (!stats.TryResolveMercenarySkill(skill.Name, out var skillId))
-                {
-                    continue;
-                }
-
-                var primary = filters.Count == 0;
+                string? skillId = stats is not null && stats.TryResolveMercenarySkill(skill.Name, out var resolved) ? resolved : null;
+                var primary = s == 0 && skillId is not null;
                 var key = "merc:" + s.ToString(System.Globalization.CultureInfo.InvariantCulture);
                 filters.Add(new SearchFilter { Key = key, Kind = FilterKind.MercenarySkill, Label = skill.Name, StatId = skillId, Enabled = primary });
 
@@ -265,22 +262,17 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
                 for (var j = 0; j < supports.Count; j++)
                 {
                     var support = supports[j];
-                    var ids = stats.ResolveMercenarySupport(support.Name, support.Tier);
-                    if (ids.Length == 0)
-                    {
-                        continue;
-                    }
-
+                    var ids = stats?.ResolveMercenarySupport(support.Name, support.Tier) ?? [];
                     filters.Add(new SearchFilter
                     {
                         Key = key + ":" + j.ToString(System.Globalization.CultureInfo.InvariantCulture),
                         Kind = FilterKind.MercenarySupport,
                         Label = support.Name,
                         Tier = support.Tier,
-                        StatId = ids[0],
+                        StatId = ids.Length > 0 ? ids[0] : null, // the copied tier exactly
                         StatIds = ids,
                         ParentKey = key,
-                        Enabled = primary && options.EnableModifiersByDefault && support.Tier >= 3,
+                        Enabled = primary && ids.Length > 0 && options.EnableModifiersByDefault && support.Tier >= 3,
                     });
                 }
             }
@@ -295,71 +287,106 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
     }
 
     /// <summary>
-    /// Mercenary skill rows → stat filters. A skill with enabled supports becomes a "mercenary" group (the skill and every
-    /// support must sit in the same link; each support counts once whichever of its tiers matched). An enabled support
-    /// pulls in its skill. A skill without enabled supports is a plain "and" filter.
+    /// Mercenary rows → the query's stat groups. Anonymous trade searches allow a single stat group, so one skill with
+    /// enabled supports (the default) becomes the only group, of type "mercenary": skill and supports in the same link,
+    /// each support matching its tier or better. Anything wider goes into the "and" group (supports at their copied tier).
+    /// An enabled support always pulls in its skill.
     /// </summary>
-    private static List<JsonObject>? MercenaryGroups(IReadOnlyList<SearchFilter> filters, JsonArray andFilters)
+    private static void AddMercenaryStats(IReadOnlyList<SearchFilter> filters, JsonArray andFilters, JsonArray stats)
     {
-        List<JsonObject>? groups = null;
+        // Pass 1: count searched skills and the skills that carry enabled supports.
+        var searchedSkills = 0;
+        var linkedSkills = 0;
         SearchFilter? skill = null;
-        JsonArray? links = null;
-        var supportCount = 0;
-
-        void Flush()
-        {
-            if (skill?.StatId is null)
-            {
-                return;
-            }
-
-            if (links is not null)
-            {
-                links.Insert(0, new JsonObject { ["id"] = skill.StatId });
-                (groups ??= []).Add(new JsonObject
-                {
-                    ["type"] = "mercenary",
-                    ["value"] = new JsonObject { ["min"] = 1 + supportCount },
-                    ["filters"] = links,
-                });
-            }
-            else if (skill.Enabled)
-            {
-                andFilters.Add((JsonNode)new JsonObject { ["id"] = skill.StatId });
-            }
-
-            links = null;
-            supportCount = 0;
-        }
-
+        bool counted = false, linked = false;
         foreach (var f in filters)
         {
             if (f.Kind == FilterKind.MercenarySkill)
             {
-                Flush();
-                skill = f;
-            }
-            else if (f.Kind == FilterKind.MercenarySupport && f.Enabled && skill is not null && f.ParentKey == skill.Key)
-            {
-                links ??= [];
-                supportCount++;
-                if (f.StatIds is { Count: > 0 } ids)
+                skill = f.StatId is null ? null : f;
+                counted = skill is { Enabled: true };
+                linked = false;
+                if (counted)
                 {
-                    foreach (var id in ids)
-                    {
-                        links.Add((JsonNode)new JsonObject { ["id"] = id });
-                    }
+                    searchedSkills++;
                 }
-                else if (f.StatId is not null)
+            }
+            else if (IsSearchedSupport(f, skill))
+            {
+                if (!counted)
                 {
-                    links.Add((JsonNode)new JsonObject { ["id"] = f.StatId });
+                    counted = true;
+                    searchedSkills++;
+                }
+
+                if (!linked)
+                {
+                    linked = true;
+                    linkedSkills++;
                 }
             }
         }
 
-        Flush();
-        return groups;
+        if (searchedSkills == 0)
+        {
+            return;
+        }
+
+        // Pass 2: emit, into the single link group when possible, otherwise into "and".
+        var link = searchedSkills == 1 && linkedSkills == 1 && andFilters.Count == 0 ? new JsonArray() : null;
+        var target = link ?? andFilters;
+        var supportCount = 0;
+        skill = null;
+        var emitted = false;
+        foreach (var f in filters)
+        {
+            if (f.Kind == FilterKind.MercenarySkill)
+            {
+                skill = f.StatId is null ? null : f;
+                emitted = skill is { Enabled: true };
+                if (emitted)
+                {
+                    target.Add((JsonNode)new JsonObject { ["id"] = skill!.StatId });
+                }
+            }
+            else if (IsSearchedSupport(f, skill))
+            {
+                if (!emitted)
+                {
+                    emitted = true;
+                    target.Add((JsonNode)new JsonObject { ["id"] = skill!.StatId });
+                }
+
+                supportCount++;
+                if (link is not null && f.StatIds is { Count: > 0 } anyTier)
+                {
+                    foreach (var id in anyTier)
+                    {
+                        link.Add((JsonNode)new JsonObject { ["id"] = id });
+                    }
+                }
+                else
+                {
+                    target.Add((JsonNode)new JsonObject { ["id"] = f.StatId });
+                }
+            }
+        }
+
+        if (link is not null)
+        {
+            // The "and" group is empty: the link group is the query's only stat group.
+            stats.Clear();
+            stats.Add((JsonNode)new JsonObject
+            {
+                ["type"] = "mercenary",
+                ["value"] = new JsonObject { ["min"] = 1 + supportCount },
+                ["filters"] = link,
+            });
+        }
     }
+
+    private static bool IsSearchedSupport(SearchFilter f, SearchFilter? skill) =>
+        f.Kind == FilterKind.MercenarySupport && f.Enabled && f.StatId is not null && skill is not null && f.ParentKey == skill.Key;
 
     /// <summary>
     /// PoE 1 imbued gems ("Supported by Level 1 Lifetap") are priced by their support: the exact support is searched
@@ -431,7 +458,8 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
         }
 
         // Transfigured gems ("Arc of Oscillating") are unknown as a type: the trade API wants base + discriminator.
-        if (item.Category == ItemCategory.Gem && options.TypeVariant is { } variant)
+        // Mercenary Warrants are searched by build the same way ("Infamous Flamequiver" → internal type + "mercenary_warrant").
+        if (item.Category is ItemCategory.Gem or ItemCategory.MercenaryWarrant && options.TypeVariant is { } variant)
         {
             query["type"] = new JsonObject { ["option"] = variant.Type, ["discriminator"] = variant.Discriminator };
         }
@@ -519,14 +547,10 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
             }
         }
 
-        var mercenaryGroups = item.Category == ItemCategory.MercenaryWarrant ? MercenaryGroups(filters, statFilters) : null;
         var stats = new JsonArray(new JsonObject { ["type"] = "and", ["filters"] = statFilters });
-        if (mercenaryGroups is not null)
+        if (item.Category == ItemCategory.MercenaryWarrant)
         {
-            foreach (var group in mercenaryGroups)
-            {
-                stats.Add((JsonNode)group);
-            }
+            AddMercenaryStats(filters, statFilters, stats);
         }
 
         query["stats"] = stats;

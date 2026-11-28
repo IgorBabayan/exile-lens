@@ -83,9 +83,16 @@ public sealed partial class FilterItemViewModel : ObservableObject
     /// <summary>Top-tier support (III or gilded): highlighted, it is what makes a warrant valuable.</summary>
     public bool IsTopTier => Filter.Tier >= 3;
 
-    public string SupportTip => Filter.Tier is { } tier ? $"{Filter.Label} — tier {tier} or better, linked to {_skill?.Label}" : Filter.Label;
+    /// <summary>A mercenary line the trade data knows (a support also needs its skill to be known); others are listed, greyed out.</summary>
+    public bool IsSearchable => Filter.StatId is not null && (_skill is null || _skill.Filter.StatId is not null);
 
-    /// <summary>Attaches a support chip to this skill. Called before the row is shown, so no change notification.</summary>
+    public string? MercenaryTip => !IsSearchable
+        ? "Not in the trade site's data: cannot be searched"
+        : Filter.Kind == FilterKind.MercenarySupport && Filter.Tier is { } tier
+            ? $"Linked to {_skill?.Label}; tier {tier} or better when it is the only skill searched"
+            : null;
+
+    /// <summary>Attaches a support row to this skill. Called before the row is shown, so no change notification.</summary>
     internal void AddSupport(FilterItemViewModel support)
     {
         support._skill = this;
