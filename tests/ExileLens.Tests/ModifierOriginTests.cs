@@ -115,6 +115,35 @@ public sealed class ModifierOriginTests
     }
 
     [TestMethod]
+    public void FoulbornGrantedSupportResolvesWithoutGemSuffix()
+    {
+        var item = Fixture.Parse("poe1/foulborn-unique-bow-granted-support.txt", GameId.Poe1);
+        var stats = new StatIndex(
+        [
+            new TradeStat("explicit.stat_returning", "Socketed Gems are Supported by Level # Returning Projectiles", "explicit"),
+            new TradeStat("explicit.stat_phys", "#% increased Physical Damage", "explicit"),
+        ]);
+        var builder = new TradeQueryBuilder();
+        var options = new TradeQueryOptions(Games.Poe1.FilterLayout);
+
+        var filter = builder.CreateDefaultFilters(item, stats, options).Single(f => f.StatId == "explicit.stat_returning");
+
+        Assert.AreEqual(ModifierKind.Mutated, filter.ModifierKind);
+        Assert.AreEqual(20, filter.RolledValue);
+    }
+
+    [TestMethod]
+    public void GrantedSupportMatchesEitherSpellingAndIgnoresZeroWidthSpace()
+    {
+        var stats = new StatIndex([new TradeStat("explicit.stat_gmp", "Socketed Gems are Supported by Level # Greater Multiple Projectiles Support", "explicit")]);
+
+        Assert.IsTrue(stats.TryResolve("explicit", ModifierText.Normalize("Socketed Gems are Supported by Level 20 Greater Multiple Projectiles"), false, out var bare));
+        Assert.IsTrue(stats.TryResolve("explicit", ModifierText.Normalize("Socketed Gems are Supported by Level 20 \u200BGreater Multiple Projectiles Support"), false, out var full));
+        Assert.AreEqual("explicit.stat_gmp", bare.Id);
+        Assert.AreEqual("explicit.stat_gmp", full.Id);
+    }
+
+    [TestMethod]
     public void AdvancedCopyGivesFiltersTheirAffixSlot()
     {
         var item = Fixture.Parse("poe1/rare-gloves-advanced.txt", GameId.Poe1);

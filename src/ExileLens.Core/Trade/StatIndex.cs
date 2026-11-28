@@ -70,7 +70,15 @@ public sealed class StatIndex
             var target = isLocal ? local : global;
             if (!text.Contains('\n'))
             {
-                target.TryAdd(Key(s.Type, ModifierText.Normalize(text)), s.Id);
+                var pattern = ModifierText.Normalize(text);
+                target.TryAdd(Key(s.Type, pattern), s.Id);
+
+                // "... Supported by Level # X Support": index the bare gem name too, so both spellings resolve in O(1).
+                if (StripSupportSuffix(pattern) is { } bare)
+                {
+                    (lineFallbacks ??= []).Add((Key(s.Type, bare), s.Id, isLocal));
+                }
+
                 continue;
             }
 
@@ -242,9 +250,26 @@ public sealed class StatIndex
             }
         }
 
+        // The game's copy now names granted supports with their gem name ("... Level 20 Returning Projectiles Support"),
+        // while trade stats keep the bare name ("... Level # Returning Projectiles"). Only tried on a miss.
+        if (StripSupportSuffix(pattern) is { } bare && Lookup(Key(type, bare), preferLocal, out id))
+        {
+            stat = new ResolvedStat(id, false);
+            return true;
+        }
+
         stat = default;
         return false;
     }
+
+    private const string SupportSuffix = " Support";
+
+    /// <summary>"Socketed Gems are Supported by Level # X Support" → "... Level # X"; null for any other pattern.</summary>
+    private static string? StripSupportSuffix(string pattern) =>
+        pattern.EndsWith(SupportSuffix, StringComparison.OrdinalIgnoreCase)
+        && pattern.Contains("Supported by Level #", StringComparison.OrdinalIgnoreCase)
+            ? pattern[..^SupportSuffix.Length]
+            : null;
 
     private static readonly (string From, string To)[] Inversions =
     [
