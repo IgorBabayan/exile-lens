@@ -20,9 +20,6 @@ namespace ExileLens.App.ViewModels;
 
 public sealed partial class FilterItemViewModel : ObservableObject
 {
-    private static readonly Avalonia.Thickness DefaultRowMargin = new(0, 2);
-    private static readonly Avalonia.Thickness NestedRowMargin = new(22, 1, 0, 1);
-
     private readonly Action _changed;
 
     public FilterItemViewModel(SearchFilter filter, Action changed)
@@ -61,8 +58,39 @@ public sealed partial class FilterItemViewModel : ObservableObject
 
     private bool IsMercenary => Filter.Kind is FilterKind.MercenarySkill or FilterKind.MercenarySupport;
 
-    /// <summary>Mercenary supports are indented under their skill row.</summary>
-    public Avalonia.Thickness RowMargin => Filter.Kind == FilterKind.MercenarySupport ? NestedRowMargin : DefaultRowMargin;
+    private List<FilterItemViewModel>? _supports;
+    private FilterItemViewModel? _skill;
+
+    /// <summary>Mercenary skill row: rendered as a group with its linked supports as toggle chips.</summary>
+    public bool IsMercenarySkill => Filter.Kind == FilterKind.MercenarySkill;
+
+    /// <summary>Supports linked to this mercenary skill, in copy order; empty for every other row.</summary>
+    public IReadOnlyList<FilterItemViewModel> Supports => (IReadOnlyList<FilterItemViewModel>?)_supports ?? [];
+
+    public bool HasSupports => _supports is { Count: > 0 };
+
+    /// <summary>Support tier as the game shows it on the gem icon (I, II, III).</summary>
+    public string? TierText => Filter.Tier switch
+    {
+        null => null,
+        1 => "I",
+        2 => "II",
+        3 => "III",
+        4 => "IV",
+        { } t => t.ToString(System.Globalization.CultureInfo.InvariantCulture),
+    };
+
+    /// <summary>Top-tier support (III or gilded): highlighted, it is what makes a warrant valuable.</summary>
+    public bool IsTopTier => Filter.Tier >= 3;
+
+    public string SupportTip => Filter.Tier is { } tier ? $"{Filter.Label} — tier {tier} or better, linked to {_skill?.Label}" : Filter.Label;
+
+    /// <summary>Attaches a support chip to this skill. Called before the row is shown, so no change notification.</summary>
+    internal void AddSupport(FilterItemViewModel support)
+    {
+        support._skill = this;
+        (_supports ??= new List<FilterItemViewModel>(6)).Add(support);
+    }
 
     public string Label => Filter.Kind switch
     {
@@ -122,6 +150,20 @@ public sealed partial class FilterItemViewModel : ObservableObject
     partial void OnEnabledChanged(bool value)
     {
         Filter.Enabled = value;
+
+        // A support is searched linked to its skill, so the skill is ticked with it; unticking a skill drops its supports.
+        if (value && _skill is { Enabled: false } skill)
+        {
+            skill.Enabled = true;
+        }
+        else if (!value && _supports is not null)
+        {
+            foreach (var support in _supports)
+            {
+                support.Enabled = false;
+            }
+        }
+
         _changed();
     }
 
@@ -499,10 +541,36 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
         StatFilters.Clear();
         PropertyFilters.Clear();
         StatSectionTitle = item.Category == ItemCategory.MercenaryWarrant ? "Mercenary skills" : "Item modifiers";
+        FilterItemViewModel? skill = null;
         foreach (var f in session.Filters)
         {
             var vm = new FilterItemViewModel(f, OnFilterChanged);
-            (vm.IsStat ? StatFilters : PropertyFilters).Add(vm);
+            if (f.Kind == FilterKind.MercenarySupport && skill is not null && f.ParentKey == skill.Filter.Key)
+            {
+                skill.AddSupport(vm);
+                continue;
+            }
+
+            // A skill row is added once its supports are attached, so its template is built with them.
+            if (skill is not null)
+            {
+                StatFilters.Add(skill);
+                skill = null;
+            }
+
+            if (vm.IsMercenarySkill)
+            {
+                skill = vm;
+            }
+            else
+            {
+                (vm.IsStat ? StatFilters : PropertyFilters).Add(vm);
+            }
+        }
+
+        if (skill is not null)
+        {
+            StatFilters.Add(skill);
         }
 
         OnPropertyChanged(nameof(HasStatFilters));

@@ -14,8 +14,15 @@ public sealed class FilterRowTemplateSelector : IDataTemplate
 
     public IDataTemplate? MultiLine { get; set; }
 
-    public Control? Build(object? param) =>
-        (param is FilterItemViewModel { HasExtraLines: true } ? MultiLine : SingleLine)?.Build(param);
+    /// <summary>Mercenary Warrant skill with its linked supports as chips (grouped like the in-game Mercenary panel).</summary>
+    public IDataTemplate? MercenarySkill { get; set; }
+
+    public Control? Build(object? param) => (param switch
+    {
+        FilterItemViewModel { IsMercenarySkill: true } => MercenarySkill ?? SingleLine,
+        FilterItemViewModel { HasExtraLines: true } => MultiLine,
+        _ => SingleLine,
+    })?.Build(param);
 
     public bool Match(object? data) => data is FilterItemViewModel;
 }

@@ -56,6 +56,9 @@ public sealed class SearchFilter
     /// <summary>Key of the filter this one belongs to (a mercenary support's skill).</summary>
     public string? ParentKey { get; init; }
 
+    /// <summary>Mercenary support tier as copied ("(Tier: 2)"); the search accepts this tier or better.</summary>
+    public int? Tier { get; init; }
+
     private List<SearchFilter>? _extra;
 
     /// <summary>
@@ -98,8 +101,6 @@ public sealed record TradeQueryOptions(
 
 public sealed class TradeQueryBuilder : ITradeQueryBuilder
 {
-    /// <summary>Trade item discriminator of the (PoE 1) Mercenary Warrant base.</summary>
-    internal const string MercenaryWarrantDiscriminator = "mercenary_warrant";
 
     private static readonly HashSet<string> LocalPreferringClasses = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -274,7 +275,8 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
                     {
                         Key = key + ":" + j.ToString(System.Globalization.CultureInfo.InvariantCulture),
                         Kind = FilterKind.MercenarySupport,
-                        Label = support.Tier is { } tier ? $"{support.Name} (Tier {tier})" : support.Name,
+                        Label = support.Name,
+                        Tier = support.Tier,
                         StatId = ids[0],
                         StatIds = ids,
                         ParentKey = key,
@@ -426,11 +428,6 @@ public sealed class TradeQueryBuilder : ITradeQueryBuilder
         else if (item.Rarity is ItemRarity.Normal or ItemRarity.Rare or ItemRarity.Unique || item.Category is not ItemCategory.Equipment)
         {
             query["type"] = item.BaseType;
-        }
-
-        if (item.Category == ItemCategory.MercenaryWarrant)
-        {
-            query["type"] = new JsonObject { ["option"] = item.BaseType, ["discriminator"] = MercenaryWarrantDiscriminator };
         }
 
         // Transfigured gems ("Arc of Oscillating") are unknown as a type: the trade API wants base + discriminator.

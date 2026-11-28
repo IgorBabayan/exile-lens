@@ -102,14 +102,14 @@ public sealed class MercenaryWarrantTests
         Assert.IsFalse(filters.Single(f => f is { Kind: FilterKind.MercenarySkill, Label: "Alchemist's Mark" }).Enabled);
         var supports = filters.Where(f => f.Kind == FilterKind.MercenarySupport && f.ParentKey == skill.Key).ToList();
         CollectionAssert.AreEqual(
-            new[] { "Faster Attacks (Tier 2)", "Greater Fork (Tier 3)", "Greater Ignite Chance (Tier 3)" }, supports.Select(s => s.Label).ToArray(),
+            new[] { "Faster Attacks", "Greater Fork", "Greater Ignite Chance" }, supports.Select(s => s.Label).ToArray(),
             "supports unknown to the trade data are left out");
+        CollectionAssert.AreEqual(new int?[] { 2, 3, 3 }, supports.Select(s => s.Tier).ToArray());
         CollectionAssert.AreEqual(new[] { false, true, true }, supports.Select(s => s.Enabled).ToArray(), "top-tier supports are on by default");
         Assert.IsFalse(filters.Any(f => f.Kind == FilterKind.Corrupted));
 
         var query = builder.Build(item, filters, options)["query"]!;
-        Assert.AreEqual("Mercenary Warrant", query["type"]!["option"]!.GetValue<string>());
-        Assert.AreEqual("mercenary_warrant", query["type"]!["discriminator"]!.GetValue<string>());
+        Assert.AreEqual("Mercenary Warrant", query["type"]!.GetValue<string>(), "plain base type: the trade API rejects a discriminator");
         Assert.AreEqual(83d, query["filters"]!["misc_filters"]!["filters"]!["ilvl"]!["min"]!.GetValue<double>());
 
         var groups = query["stats"]!.AsArray();
@@ -136,7 +136,7 @@ public sealed class MercenaryWarrantTests
 
         filters.Single(f => f.Label == "Alchemist's Mark").Enabled = true;
         filters.Single(f => f.Label == "Burning Arrow").Enabled = false;
-        filters.Single(f => f.Label == "Faster Attacks (Tier 2)").Enabled = true;
+        filters.Single(f => f.Label == "Faster Attacks").Enabled = true;
 
         var stats = builder.Build(item, filters, options)["query"]!["stats"]!.AsArray();
         Assert.AreEqual(2, stats.Count);
