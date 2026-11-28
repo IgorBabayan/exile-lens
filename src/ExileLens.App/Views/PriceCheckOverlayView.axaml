@@ -55,6 +55,16 @@
       <Setter Property="Padding" Value="8,2" />
       <Setter Property="Margin" Value="0,2" />
     </Style>
+    <!-- Expand/collapse chevron before a mercenary skill: points right when collapsed, down when expanded. -->
+    <Style Selector="ToggleButton.merc-expand Path">
+      <Setter Property="RenderTransform" Value="rotate(0deg)" />
+    </Style>
+    <Style Selector="ToggleButton.merc-expand:checked Path">
+      <Setter Property="RenderTransform" Value="rotate(90deg)" />
+    </Style>
+    <Style Selector="ToggleButton.merc-expand:pointerover Path">
+      <Setter Property="Stroke" Value="{DynamicResource TextPrimaryBrush}" />
+    </Style>
     <Style Selector="TextBlock.tier">
       <Setter Property="FontSize" Value="10" />
       <Setter Property="FontWeight" Value="SemiBold" />
@@ -236,11 +246,27 @@
             <DataTemplate x:DataType="vm:FilterItemViewModel">
               <Border Classes="merc-skill">
                 <StackPanel>
-                  <CheckBox IsChecked="{Binding Enabled}" IsEnabled="{Binding IsSearchable}" MinHeight="28"
-                            ToolTip.Tip="{Binding MercenaryTip}">
-                    <TextBlock Classes="mod" Text="{Binding Label}" FontWeight="SemiBold" TextWrapping="Wrap" />
-                  </CheckBox>
-                  <ItemsControl ItemsSource="{Binding Supports}" IsVisible="{Binding HasSupports}" Margin="24,0,0,2">
+                  <!-- Fixed chevron column, so skill names line up whether or not a skill has supports. -->
+                  <Grid ColumnDefinitions="20,*">
+                    <ToggleButton Classes="merc-expand" Theme="{StaticResource ExileExpanderHeader}" Padding="2,4"
+                                  IsChecked="{Binding IsExpanded}" IsVisible="{Binding HasSupports}"
+                                  VerticalAlignment="Center" ToolTip.Tip="Show or hide linked supports">
+                      <Path Data="{DynamicResource IconChevron}" Width="10" Height="10" Stretch="Uniform"
+                            Stroke="{DynamicResource TextSecondaryBrush}" StrokeThickness="1.8"
+                            StrokeLineCap="Round" StrokeJoin="Round" RenderTransformOrigin="50%,50%">
+                        <Path.Transitions>
+                          <Transitions>
+                            <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.12" />
+                          </Transitions>
+                        </Path.Transitions>
+                      </Path>
+                    </ToggleButton>
+                    <CheckBox Grid.Column="1" IsChecked="{Binding Enabled}" IsEnabled="{Binding IsSearchable}" MinHeight="28"
+                              ToolTip.Tip="{Binding MercenaryTip}">
+                      <TextBlock Classes="mod" Text="{Binding Label}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    </CheckBox>
+                  </Grid>
+                  <ItemsControl ItemsSource="{Binding Supports}" IsVisible="{Binding ShowSupports}" Margin="44,0,0,2">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate x:DataType="vm:FilterItemViewModel">
                         <CheckBox IsChecked="{Binding Enabled}" IsEnabled="{Binding IsSearchable}" MinHeight="24"

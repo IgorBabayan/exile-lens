@@ -69,6 +69,16 @@ public sealed partial class FilterItemViewModel : ObservableObject
 
     public bool HasSupports => _supports is { Count: > 0 };
 
+    /// <summary>
+    /// Supports of this skill are shown. Starts expanded only for a skill with supports already in the search (the main
+    /// skill), so the other skills stay one line each and the overlay keeps its height.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowSupports))]
+    private bool _isExpanded;
+
+    public bool ShowSupports => IsExpanded && HasSupports;
+
     /// <summary>Support tier as the game shows it on the gem icon (I, II, III).</summary>
     public string? TierText => Filter.Tier switch
     {
@@ -97,6 +107,7 @@ public sealed partial class FilterItemViewModel : ObservableObject
     {
         support._skill = this;
         (_supports ??= new List<FilterItemViewModel>(6)).Add(support);
+        _isExpanded |= support.Enabled; // field, not property: no notification needed before the row exists
     }
 
     public string Label => Filter.Kind switch
