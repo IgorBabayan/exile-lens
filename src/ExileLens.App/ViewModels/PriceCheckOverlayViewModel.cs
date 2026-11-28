@@ -31,22 +31,27 @@ public sealed partial class FilterItemViewModel : ObservableObject
         _maxText = Formatting.Format(filter.Max);
         if (filter.Extra.Count > 0)
         {
-            var lines = new FilterLineViewModel[filter.Extra.Count];
-            for (var i = 0; i < lines.Length; i++)
+            // Head line first, then the continuation lines: the multi-line template renders them as one stacked block.
+            var lines = new FilterLineViewModel[filter.Extra.Count + 1];
+            lines[0] = new FilterLineViewModel(filter, filter, changed);
+            for (var i = 1; i < lines.Length; i++)
             {
-                lines[i] = new FilterLineViewModel(filter, filter.Extra[i], changed);
+                lines[i] = new FilterLineViewModel(filter, filter.Extra[i - 1], changed);
             }
 
-            ExtraLines = lines;
+            Lines = lines;
         }
     }
 
     public SearchFilter Filter { get; }
 
-    /// <summary>Further lines of a hybrid affix: shown under the first line, toggled by its checkbox, each with its own minimum.</summary>
-    public IReadOnlyList<FilterLineViewModel> ExtraLines { get; } = [];
+    /// <summary>
+    /// Every line of a multi-line (hybrid) affix, head line first; empty for single-line rows.
+    /// One checkbox toggles them all, each line keeps its own minimum.
+    /// </summary>
+    public IReadOnlyList<FilterLineViewModel> Lines { get; } = [];
 
-    public bool HasExtraLines => ExtraLines.Count > 0;
+    public bool HasExtraLines => Lines.Count > 1;
 
     /// <summary>Option stats (an imbued gem's support) match by option and have no minimum.</summary>
     public bool HasMinBox => Filter.OptionId is null;

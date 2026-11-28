@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:ExileLens.App.ViewModels"
+             xmlns:views="using:ExileLens.App.Views"
              x:Class="ExileLens.App.Views.PriceCheckOverlayView"
              x:DataType="vm:PriceCheckOverlayViewModel">
   <!--
@@ -12,6 +13,11 @@
     <!-- Modifier origin tag and in-game origin colors (order matters: the origin styles override the tag style;
          TextBlock and Run selectors stay separate so each setter resolves Foreground on its own type). -->
     <Style Selector="TextBlock.mod Run.tag">
+      <Setter Property="FontSize" Value="{DynamicResource FontSizeCaption}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    </Style>
+    <!-- Same tag look as a standalone block (multi-line affixes: the tag sits left of the stacked lines). -->
+    <Style Selector="TextBlock.mod.tag">
       <Setter Property="FontSize" Value="{DynamicResource FontSizeCaption}" />
       <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
     </Style>
@@ -157,43 +163,57 @@
     <TextBlock Text="Item modifiers" Classes="section" IsVisible="{Binding HasStatFilters}" />
     <ItemsControl ItemsSource="{Binding StatFilters}" IsVisible="{Binding HasStatFilters}">
       <ItemsControl.ItemTemplate>
-        <DataTemplate x:DataType="vm:FilterItemViewModel">
-          <StackPanel Margin="0,2">
-            <Grid ColumnDefinitions="*,Auto">
-              <CheckBox IsChecked="{Binding Enabled}" MinHeight="28">
-                <!-- One wrapping line: origin tag first, then the modifier, tinted like the game tooltip. -->
-                <TextBlock Classes="mod" TextWrapping="Wrap" MaxWidth="290"
+        <views:FilterRowTemplateSelector>
+          <!-- Single-line affix: one wrapping line, origin tag inline before the text. -->
+          <views:FilterRowTemplateSelector.SingleLine>
+            <DataTemplate x:DataType="vm:FilterItemViewModel">
+              <Grid ColumnDefinitions="*,Auto" Margin="0,2">
+                <CheckBox IsChecked="{Binding Enabled}" MinHeight="28">
+                  <!-- One wrapping line: origin tag first, then the modifier, tinted like the game tooltip. -->
+                  <TextBlock Classes="mod" TextWrapping="Wrap" MaxWidth="290"
+                             Classes.fractured="{Binding IsFractured}" Classes.crafted="{Binding IsCrafted}"
+                             Classes.foulborn="{Binding IsFoulborn}"
+                             Classes.prefix="{Binding IsPrefix}" Classes.suffix="{Binding IsSuffix}">
+                    <Run Classes="tag" Text="{Binding KindTag}" /><Run Text="{Binding Label}" />
+                  </TextBlock>
+                </CheckBox>
+                <TextBox Grid.Column="1" Text="{Binding MinText}" Width="58" MinHeight="26" Padding="6,3" FontSize="12"
+                         PlaceholderText="min" IsEnabled="{Binding Enabled}" IsVisible="{Binding HasMinBox}" ToolTip.Tip="Minimum value" />
+              </Grid>
+            </DataTemplate>
+          </views:FilterRowTemplateSelector.SingleLine>
+          <!-- Multi-line affix (any origin): checkbox and origin tag vertically centered on the left, every line of the
+               affix stacked tightly in one column starting at the same x, one checkbox for all, a minimum per line. -->
+          <views:FilterRowTemplateSelector.MultiLine>
+            <DataTemplate x:DataType="vm:FilterItemViewModel">
+              <Grid ColumnDefinitions="Auto,Auto,*" Margin="0,2">
+                <CheckBox IsChecked="{Binding Enabled}" MinWidth="0" MinHeight="0" Padding="0" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Classes="mod tag" Text="{Binding KindTag}" Margin="8,0,0,0" VerticalAlignment="Center"
                            Classes.fractured="{Binding IsFractured}" Classes.crafted="{Binding IsCrafted}"
                            Classes.foulborn="{Binding IsFoulborn}"
-                           Classes.prefix="{Binding IsPrefix}" Classes.suffix="{Binding IsSuffix}">
-                  <Run Classes="tag" Text="{Binding KindTag}" /><Run Text="{Binding Label}" />
-                </TextBlock>
-              </CheckBox>
-              <TextBox Grid.Column="1" Text="{Binding MinText}" Width="58" MinHeight="26" Padding="6,3" FontSize="12"
-                       PlaceholderText="min" IsEnabled="{Binding Enabled}" IsVisible="{Binding HasMinBox}" ToolTip.Tip="Minimum value" />
-            </Grid>
-            <!-- Hybrid affix: the other lines of the same affix, one checkbox for all, a minimum per line.
-                 Each line sits under the previous one, left-aligned with the first line's text (28 = checkbox glyph + padding).
-                 HorizontalAlignment="Left" is required: a stretched TextBlock narrower than its column (MaxWidth) gets centered. -->
-            <ItemsControl ItemsSource="{Binding ExtraLines}" IsVisible="{Binding HasExtraLines}">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:FilterLineViewModel">
-                  <Grid ColumnDefinitions="*,Auto" Margin="0,2,0,0">
-                    <TextBlock Classes="mod" TextWrapping="Wrap" MaxWidth="262" Margin="28,0,0,0"
-                               HorizontalAlignment="Left" VerticalAlignment="Center"
-                               Classes.fractured="{Binding IsFractured}" Classes.crafted="{Binding IsCrafted}"
-                               Classes.foulborn="{Binding IsFoulborn}"
-                               Classes.prefix="{Binding IsPrefix}" Classes.suffix="{Binding IsSuffix}"
-                               Text="{Binding Label}" />
-                    <TextBox Grid.Column="1" Text="{Binding MinText}" Width="58" MinHeight="26" Padding="6,3" FontSize="12"
-                             PlaceholderText="min" IsVisible="{Binding HasMinBox}" ToolTip.Tip="Minimum value"
-                             IsEnabled="{Binding $parent[ItemsControl].((vm:FilterItemViewModel)DataContext).Enabled, FallbackValue=True}" />
-                  </Grid>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-          </StackPanel>
-        </DataTemplate>
+                           IsVisible="{Binding KindTag, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                <ItemsControl Grid.Column="2" ItemsSource="{Binding Lines}" Margin="8,0,0,0" VerticalAlignment="Center">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:FilterLineViewModel">
+                      <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Classes="mod" TextWrapping="Wrap" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                   Classes.fractured="{Binding IsFractured}" Classes.crafted="{Binding IsCrafted}"
+                                   Classes.foulborn="{Binding IsFoulborn}"
+                                   Classes.prefix="{Binding IsPrefix}" Classes.suffix="{Binding IsSuffix}"
+                                   Text="{Binding Label}" />
+                        <!-- Compact box so the lines read as one block (no blank gap between them). -->
+                        <TextBox Grid.Column="1" Text="{Binding MinText}" Width="58" MinHeight="22" Padding="6,1" FontSize="12"
+                                 Margin="6,1,0,1" VerticalAlignment="Center"
+                                 PlaceholderText="min" IsVisible="{Binding HasMinBox}" ToolTip.Tip="Minimum value"
+                                 IsEnabled="{Binding $parent[ItemsControl].((vm:FilterItemViewModel)DataContext).Enabled, FallbackValue=True}" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </Grid>
+            </DataTemplate>
+          </views:FilterRowTemplateSelector.MultiLine>
+        </views:FilterRowTemplateSelector>
       </ItemsControl.ItemTemplate>
     </ItemsControl>
 
