@@ -31,29 +31,88 @@ public sealed partial class FilterItemViewModel : ObservableObject
         _maxText = Formatting.Format(filter.Max);
         if (filter.Extra.Count > 0)
         {
-            var lines = new FilterLineViewModel[filter.Extra.Count];
-            for (var i = 0; i < lines.Length; i++)
+            // Head line first, then the continuation lines: the multi-line template renders them as one stacked block.
+            var lines = new FilterLineViewModel[filter.Extra.Count + 1];
+            lines[0] = new FilterLineViewModel(filter, filter, changed);
+            for (var i = 1; i < lines.Length; i++)
             {
-                lines[i] = new FilterLineViewModel(filter, filter.Extra[i], changed);
+                lines[i] = new FilterLineViewModel(filter, filter.Extra[i - 1], changed);
             }
 
-            ExtraLines = lines;
+            Lines = lines;
         }
     }
 
     public SearchFilter Filter { get; }
 
-    /// <summary>Further lines of a hybrid affix: shown under the first line, toggled by its checkbox, each with its own minimum.</summary>
-    public IReadOnlyList<FilterLineViewModel> ExtraLines { get; } = [];
+    /// <summary>
+    /// Every line of a multi-line (hybrid) affix, head line first; empty for single-line rows.
+    /// One checkbox toggles them all, each line keeps its own minimum.
+    /// </summary>
+    public IReadOnlyList<FilterLineViewModel> Lines { get; } = [];
 
-    public bool HasExtraLines => ExtraLines.Count > 0;
+    public bool HasExtraLines => Lines.Count > 1;
 
-    /// <summary>Option stats (an imbued gem's support) match by option and have no minimum.</summary>
-    public bool HasMinBox => Filter.OptionId is null;
+    /// <summary>Option stats (an imbued gem's support) and mercenary skills/supports are present-or-not: no minimum.</summary>
+    public bool HasMinBox => Filter.OptionId is null && !IsMercenary;
+
+    private bool IsMercenary => Filter.Kind is FilterKind.MercenarySkill or FilterKind.MercenarySupport;
+
+    private List<FilterItemViewModel>? _supports;
+    private FilterItemViewModel? _skill;
+
+    /// <summary>Mercenary skill row: rendered as a group with its linked supports as toggle chips.</summary>
+    public bool IsMercenarySkill => Filter.Kind == FilterKind.MercenarySkill;
+
+    /// <summary>Supports linked to this mercenary skill, in copy order; empty for every other row.</summary>
+    public IReadOnlyList<FilterItemViewModel> Supports => (IReadOnlyList<FilterItemViewModel>?)_supports ?? [];
+
+    public bool HasSupports => _supports is { Count: > 0 };
+
+    /// <summary>
+    /// Supports of this skill are shown. Starts expanded only for a skill with supports already in the search (the main
+    /// skill), so the other skills stay one line each and the overlay keeps its height.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowSupports))]
+    private bool _isExpanded;
+
+    public bool ShowSupports => IsExpanded && HasSupports;
+
+    /// <summary>Support tier as the game shows it on the gem icon (I, II, III).</summary>
+    public string? TierText => Filter.Tier switch
+    {
+        null => null,
+        1 => "I",
+        2 => "II",
+        3 => "III",
+        4 => "IV",
+        { } t => t.ToString(System.Globalization.CultureInfo.InvariantCulture),
+    };
+
+    /// <summary>Top-tier support (III or gilded): highlighted, it is what makes a warrant valuable.</summary>
+    public bool IsTopTier => Filter.Tier >= 3;
+
+    /// <summary>A mercenary line the trade data knows (a support also needs its skill to be known); others are listed, greyed out.</summary>
+    public bool IsSearchable => Filter.StatId is not null && (_skill is null || _skill.Filter.StatId is not null);
+
+    public string? MercenaryTip => !IsSearchable
+        ? "Not in the trade site's data: cannot be searched"
+        : Filter.Kind == FilterKind.MercenarySupport && Filter.Tier is { } tier
+            ? $"Linked to {_skill?.Label}; tier {tier} or better when it is the only skill searched"
+            : null;
+
+    /// <summary>Attaches a support row to this skill. Called before the row is shown, so no change notification.</summary>
+    internal void AddSupport(FilterItemViewModel support)
+    {
+        support._skill = this;
+        (_supports ??= new List<FilterItemViewModel>(6)).Add(support);
+        _isExpanded |= support.Enabled; // field, not property: no notification needed before the row exists
+    }
 
     public string Label => Filter.Kind switch
     {
-        FilterKind.ItemLevel => "Item level",
+        // Item level keeps the builder's label ("Item level", "Corpse level", "Mercenary level").
         FilterKind.Quality => "Quality",
         FilterKind.Sockets => "Sockets",
         FilterKind.Links => "Links",
@@ -62,9 +121,10 @@ public sealed partial class FilterItemViewModel : ObservableObject
         _ => Filter.Label,
     };
 
-    public bool IsStat => Filter.Kind == FilterKind.Stat;
+    public bool IsStat => Filter.Kind is FilterKind.Stat or FilterKind.MercenarySkill or FilterKind.MercenarySupport;
 
-    public bool HasRange => Filter.Kind is not (FilterKind.Corrupted or FilterKind.Rarity or FilterKind.Name or FilterKind.Imbued);
+    public bool HasRange => Filter.Kind is not (FilterKind.Corrupted or FilterKind.Rarity or FilterKind.Name or FilterKind.Imbued
+        or FilterKind.MercenarySkill or FilterKind.MercenarySupport);
 
     public bool HasMax => Filter.Kind is FilterKind.MapTier or FilterKind.GemLevel or FilterKind.ItemLevel;
 
@@ -108,6 +168,20 @@ public sealed partial class FilterItemViewModel : ObservableObject
     partial void OnEnabledChanged(bool value)
     {
         Filter.Enabled = value;
+
+        // A support is searched linked to its skill, so the skill is ticked with it; unticking a skill drops its supports.
+        if (value && _skill is { Enabled: false } skill)
+        {
+            skill.Enabled = true;
+        }
+        else if (!value && _supports is not null)
+        {
+            foreach (var support in _supports)
+            {
+                support.Enabled = false;
+            }
+        }
+
         _changed();
     }
 
@@ -379,6 +453,10 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
 
     public bool HasStatFilters => StatFilters.Count > 0;
 
+    /// <summary>Heading of the modifier list: a Mercenary Warrant lists skills and their linked supports.</summary>
+    [ObservableProperty]
+    private string _statSectionTitle = "Item modifiers";
+
     public bool HasPropertyFilters => PropertyFilters.Count > 0;
 
     public bool HasListings => Listings.Count > 0;
@@ -480,10 +558,37 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
 
         StatFilters.Clear();
         PropertyFilters.Clear();
+        StatSectionTitle = item.Category == ItemCategory.MercenaryWarrant ? "Mercenary skills" : "Item modifiers";
+        FilterItemViewModel? skill = null;
         foreach (var f in session.Filters)
         {
             var vm = new FilterItemViewModel(f, OnFilterChanged);
-            (vm.IsStat ? StatFilters : PropertyFilters).Add(vm);
+            if (f.Kind == FilterKind.MercenarySupport && skill is not null && f.ParentKey == skill.Filter.Key)
+            {
+                skill.AddSupport(vm);
+                continue;
+            }
+
+            // A skill row is added once its supports are attached, so its template is built with them.
+            if (skill is not null)
+            {
+                StatFilters.Add(skill);
+                skill = null;
+            }
+
+            if (vm.IsMercenarySkill)
+            {
+                skill = vm;
+            }
+            else
+            {
+                (vm.IsStat ? StatFilters : PropertyFilters).Add(vm);
+            }
+        }
+
+        if (skill is not null)
+        {
+            StatFilters.Add(skill);
         }
 
         OnPropertyChanged(nameof(HasStatFilters));
@@ -1088,6 +1193,12 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
 
     private static string BuildMeta(ParsedItem item)
     {
+        if (item.Mercenary is { } merc)
+        {
+            var build = merc.Build is { } b ? "Build: " + b : "Mercenary";
+            return merc.Level is { } level ? $"{build} · Level {level}" : build;
+        }
+
         var parts = new List<string>(4);
         parts.Add(item.Rarity switch
         {

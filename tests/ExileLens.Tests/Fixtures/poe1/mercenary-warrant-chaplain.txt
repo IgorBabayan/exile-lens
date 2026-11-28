@@ -1,0 +1,36 @@
+Item Class: Map Fragments
+Rarity: Normal
+Mercenary Warrant
+--------
+Callus, Lich Lord's Vassal
+--------
+Build: Chaplain of the Well
+Mercenary Level: 83
+--------
+Abyssal Spray
+Greater Wither on Hit (Tier: 3)
+Return (Tier: 3)
+Faster Casting (Tier: 2)
+Greater Pierce (Tier: 3)
+--------
+Abyssal Spray Detonation
+Added Chaos (Tier: 2)
+Concentrated Effect (Tier: 2)
+Greater Physical as Extra Chaos (Tier: 3)
+--------
+Power of the Depths
+--------
+Smite
+Greater Area of Effect (Tier: 3)
+Generosity (Tier: 2)
+Greater Faster Attacks (Tier: 3)
+Elemental Damage with Attacks (Tier: 2)
+--------
+Abyssal Cry
+Cooldown Recovery (Tier: 2)
+Greater Area of Effect (Tier: 3)
+--------
+Envy
+--------
+Right click this item to view Mercenary details.
+Open a portal to the Proving Grounds by using this item in a personal Map Device. This previously fought Mercenary will reappear in the area for a rematch. While viewing your Atlas, Right-click this item to pinpoint its location.

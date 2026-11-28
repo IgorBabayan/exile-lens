@@ -143,6 +143,13 @@ public static class ModifierText
                 continue;
             }
 
+            // The game may glue a zero-width space (or BOM) before a granted gem's name; it is invisible and never in trade text.
+            if (c is '\u200B' or '\uFEFF')
+            {
+                i++;
+                continue;
+            }
+
             if (char.IsWhiteSpace(c))
             {
                 if (!lastWasSpace)

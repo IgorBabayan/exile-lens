@@ -149,13 +149,24 @@ public sealed class PriceCheckService : IPriceEstimationService
         }
     }
 
-    /// <summary>Base + discriminator of a transfigured gem ("Arc of Oscillating" → "Arc" / "alt_y"); null for anything else.</summary>
-    private TradeTypeVariant? TypeVariant(PriceCheckSession session) =>
-        session.Item.Category == ItemCategory.Gem
-        && _gemVariants.TryGetValue(session.Game.Game, out var map)
-        && map.TryGetValue(session.Item.BaseType, out var variant)
+    /// <summary>
+    /// Type + discriminator of a transfigured gem ("Arc of Oscillating" → "Arc" / "alt_y") or of a Mercenary Warrant's
+    /// build ("Infamous Flamequiver" → its internal type / "mercenary_warrant"); null for anything else.
+    /// </summary>
+    private TradeTypeVariant? TypeVariant(PriceCheckSession session)
+    {
+        var item = session.Item;
+        var key = item.Category switch
+        {
+            ItemCategory.Gem => item.BaseType,
+            ItemCategory.MercenaryWarrant => item.Mercenary?.TradeItemText,
+            _ => null,
+        };
+
+        return key is not null && _gemVariants.TryGetValue(session.Game.Game, out var map) && map.TryGetValue(key, out var variant)
             ? variant
             : null;
+    }
 
     public bool NeedsUniqueChoice(PriceCheckSession session) =>
         !session.UsesBulkPricing && session.Item is { Rarity: ItemRarity.Unique, Name: null, BaseType.Length: > 0 };
@@ -261,9 +272,10 @@ public sealed class PriceCheckService : IPriceEstimationService
             }
             else
             {
-                if (session.Item.Category == ItemCategory.Gem)
+                if (session.Item.Category is ItemCategory.Gem or ItemCategory.MercenaryWarrant)
                 {
-                    // Usually already loaded by the warm-up; awaited so a transfigured gem never searches an unknown type.
+                    // Usually already loaded by the warm-up; awaited so a transfigured gem never searches an unknown type
+                    // and a warrant is searched by its build.
                     await LoadGemVariantsAsync(session.Game, cancellationToken).ConfigureAwait(false);
                 }
 

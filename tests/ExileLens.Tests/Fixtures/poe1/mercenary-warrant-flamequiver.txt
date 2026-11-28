@@ -1,0 +1,34 @@
+Item Class: Map Fragments
+Rarity: Normal
+Mercenary Warrant
+--------
+Alara, the Cyaxan Sister
+--------
+Build: Infamous Flamequiver
+Mercenary Level: 83
+--------
+Burning Arrow
+Faster Attacks (Tier: 2)
+DoT Multiplier (Tier: 2)
+Greater Fork (Tier: 3)
+Greater Ignite Chance (Tier: 3)
+Swift Affliction (Tier: 2)
+--------
+Alchemist's Mark
+--------
+Artillery Ballista
+Increased Area of Effect (Tier: 2)
+Greater Cooldown Recovery (Tier: 3)
+--------
+Molten Well
+Increased Area of Effect (Tier: 2)
+More Duration (Tier: 2)
+Second Wind (Tier: 3)
+DoT Multiplier (Tier: 2)
+--------
+Dash
+--------
+Grace
+--------
+Right click this item to view Mercenary details.
+Open a portal to the Proving Grounds by using this item in a personal Map Device. This previously fought Mercenary will reappear in the area for a rematch. While viewing your Atlas, Right-click this item to pinpoint its location.

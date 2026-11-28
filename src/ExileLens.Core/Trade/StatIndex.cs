@@ -37,7 +37,19 @@ public sealed class StatIndex
     /// <summary>Imbued gem support name (case-insensitive) → option-valued trade stat.</summary>
     private readonly FrozenDictionary<string, ResolvedOption> _imbuedSupports;
 
+    /// <summary>
+    /// Mercenary skill/support (case-insensitive) → trade stat id ("mercenary.skill_…", "mercenary.support_…"). Supports are
+    /// indexed by "Name (Tier N)" (the trade spelling) and by their bare name as a fallback.
+    /// </summary>
+    private readonly FrozenDictionary<string, string> _mercenary;
+
     public const string ImbuedType = "imbued";
+
+    /// <summary>Id prefix of the Mercenary Warrant stats (skills and tiered supports); searched in "mercenary" stat groups.</summary>
+    public const string MercenaryPrefix = "mercenary.";
+
+    /// <summary>"Pierce (Tier 2)" on the trade site, "Pierce (Tier: 2)" in the game's copy.</summary>
+    private const string TierSuffix = " (Tier";
 
     public StatIndex(IEnumerable<TradeStat> stats)
     {
@@ -45,6 +57,7 @@ public sealed class StatIndex
         var local = new Dictionary<string, string>(StringComparer.Ordinal);
         var heads = new Dictionary<string, int>(StringComparer.Ordinal);
         var imbued = new Dictionary<string, ResolvedOption>(StringComparer.OrdinalIgnoreCase);
+        var mercenary = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         List<(string Key, string Id, bool IsLocal)>? lineFallbacks = null;
         var count = 0;
         foreach (var s in stats)
@@ -60,6 +73,25 @@ public sealed class StatIndex
                 continue;
             }
 
+            // Mercenary skills and supports are plain names: no pattern normalization, no line joining.
+            if (s.Id.StartsWith(MercenaryPrefix, StringComparison.Ordinal))
+            {
+                var mercText = s.Text.AsSpan().Trim();
+                var cut = mercText.LastIndexOf(TierSuffix, StringComparison.Ordinal);
+                if (cut > 0 && ParseTier(mercText[cut..]) is { } tier)
+                {
+                    var bare = mercText[..cut].ToString();
+                    mercenary.TryAdd(TierKey(bare, tier), s.Id);
+                    mercenary.TryAdd(bare, s.Id);
+                }
+                else
+                {
+                    mercenary.TryAdd(mercText.ToString(), s.Id);
+                }
+
+                continue;
+            }
+
             var text = s.Text;
             var isLocal = text.EndsWith(LocalSuffix, StringComparison.OrdinalIgnoreCase);
             if (isLocal)
@@ -70,7 +102,15 @@ public sealed class StatIndex
             var target = isLocal ? local : global;
             if (!text.Contains('\n'))
             {
-                target.TryAdd(Key(s.Type, ModifierText.Normalize(text)), s.Id);
+                var pattern = ModifierText.Normalize(text);
+                target.TryAdd(Key(s.Type, pattern), s.Id);
+
+                // "... Supported by Level # X Support": index the bare gem name too, so both spellings resolve in O(1).
+                if (StripSupportSuffix(pattern) is { } bare)
+                {
+                    (lineFallbacks ??= []).Add((Key(s.Type, bare), s.Id, isLocal));
+                }
+
                 continue;
             }
 
@@ -121,6 +161,7 @@ public sealed class StatIndex
         _local = local.ToFrozenDictionary(StringComparer.Ordinal);
         _multiLineHeads = heads.ToFrozenDictionary(StringComparer.Ordinal);
         _imbuedSupports = imbued.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+        _mercenary = mercenary.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
         Count = count;
     }
 
@@ -129,6 +170,63 @@ public sealed class StatIndex
     /// <summary>Trade stat of an imbued gem's built-in support, by the support's name (e.g. "Lifetap").</summary>
     public bool TryResolveImbuedSupport(string supportName, out ResolvedOption option) =>
         _imbuedSupports.TryGetValue(supportName, out option);
+
+    /// <summary>Trade stat of a Mercenary Warrant skill, by its name (e.g. "Burning Arrow").</summary>
+    public bool TryResolveMercenarySkill(string skillName, out string statId) =>
+        _mercenary.TryGetValue(skillName, out statId!);
+
+    /// <summary>Trade stat of one mercenary support at exactly the given tier (bare-name match when the tier is not listed).</summary>
+    public bool TryResolveMercenarySupport(string supportName, int? tier, out string statId) =>
+        (tier is { } t && _mercenary.TryGetValue(TierKey(supportName, t), out statId!)) || _mercenary.TryGetValue(supportName, out statId!);
+
+    /// <summary>
+    /// Trade stats that satisfy a mercenary support of at least the given tier: the support itself plus its higher tiers
+    /// ("Lesser X" (1) → "X" (2) → "Greater X" (3); "Increased X" pairs with "Greater X"). Empty when unknown.
+    /// </summary>
+    public string[] ResolveMercenarySupport(string supportName, int? tier)
+    {
+        if (!TryResolveMercenarySupport(supportName, tier, out var id))
+        {
+            return [];
+        }
+
+        if (tier is not (1 or 2))
+        {
+            return [id];
+        }
+
+        const string lesser = "Lesser ", increased = "Increased ", greater = "Greater ";
+        var bare = supportName.StartsWith(lesser, StringComparison.OrdinalIgnoreCase) ? supportName[lesser.Length..] : supportName;
+        var ids = new List<string>(3) { id };
+        if (tier == 1 && TryResolveMercenarySupport(bare, 2, out var mid) && mid != id)
+        {
+            ids.Add(mid);
+        }
+
+        if ((TryResolveMercenarySupport(greater + bare, 3, out var top)
+             || (bare.StartsWith(increased, StringComparison.OrdinalIgnoreCase) && TryResolveMercenarySupport(greater + bare[increased.Length..], 3, out top)))
+            && !ids.Contains(top))
+        {
+            ids.Add(top);
+        }
+
+        return ids.ToArray();
+    }
+
+    private static string TierKey(string name, int tier) =>
+        string.Concat(name, " (Tier ", tier.ToString(System.Globalization.CultureInfo.InvariantCulture), ")");
+
+    /// <summary>" (Tier 2)" or " (Tier: 2)" → 2; null for anything else.</summary>
+    private static int? ParseTier(ReadOnlySpan<char> suffix)
+    {
+        var rest = suffix[TierSuffix.Length..].TrimStart(':').Trim();
+        if (rest.Length < 2 || rest[^1] != ')')
+        {
+            return null;
+        }
+
+        return int.TryParse(rest[..^1].Trim(), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var t) ? t : null;
+    }
 
     public static string TypeFor(ModifierKind kind) => kind switch
     {
@@ -242,9 +340,26 @@ public sealed class StatIndex
             }
         }
 
+        // The game's copy now names granted supports with their gem name ("... Level 20 Returning Projectiles Support"),
+        // while trade stats keep the bare name ("... Level # Returning Projectiles"). Only tried on a miss.
+        if (StripSupportSuffix(pattern) is { } bare && Lookup(Key(type, bare), preferLocal, out id))
+        {
+            stat = new ResolvedStat(id, false);
+            return true;
+        }
+
         stat = default;
         return false;
     }
+
+    private const string SupportSuffix = " Support";
+
+    /// <summary>"Socketed Gems are Supported by Level # X Support" → "... Level # X"; null for any other pattern.</summary>
+    private static string? StripSupportSuffix(string pattern) =>
+        pattern.EndsWith(SupportSuffix, StringComparison.OrdinalIgnoreCase)
+        && pattern.Contains("Supported by Level #", StringComparison.OrdinalIgnoreCase)
+            ? pattern[..^SupportSuffix.Length]
+            : null;
 
     private static readonly (string From, string To)[] Inversions =
     [
