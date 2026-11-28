@@ -1,6 +1,7 @@
 name: CI
 
 # Manual only. Automatic builds happen in release.yml, after a development -> release PR is merged.
+# The full test suite runs first on every OS; the build job starts only after all test runs pass.
 on:
   workflow_dispatch:
 
@@ -14,10 +15,36 @@ concurrency:
 env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
 
 jobs:
-  build-test:
-    name: Build & test (${{ matrix.os }})
+  test:
+    name: Test (${{ matrix.os }})
+    strategy:
+      # One failing OS cancels the others: the build is blocked anyway, so don't burn runner minutes.
+      fail-fast: true
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - name: Restore
+        run: dotnet restore tests/ExileLens.Tests/ExileLens.Tests.csproj
+      - name: Test
+        run: dotnet test tests/ExileLens.Tests/ExileLens.Tests.csproj --configuration Release --no-restore
+
+  build:
+    name: Build (${{ matrix.os }})
+    needs: test
     strategy:
       fail-fast: false
       matrix:
@@ -28,9 +55,12 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
       - name: Restore
         run: dotnet restore ExileLens.slnx
       - name: Build
         run: dotnet build ExileLens.slnx --configuration Release --no-restore
-      - name: Test
-        run: dotnet test tests/ExileLens.Tests/ExileLens.Tests.csproj --configuration Release --no-build
