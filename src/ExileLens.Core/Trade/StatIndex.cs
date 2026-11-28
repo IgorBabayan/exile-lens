@@ -37,7 +37,15 @@ public sealed class StatIndex
     /// <summary>Imbued gem support name (case-insensitive) → option-valued trade stat.</summary>
     private readonly FrozenDictionary<string, ResolvedOption> _imbuedSupports;
 
+    /// <summary>Mercenary skill/support name (case-insensitive) → trade stat id ("mercenary.skill_…", "mercenary.support_…").</summary>
+    private readonly FrozenDictionary<string, string> _mercenary;
+
     public const string ImbuedType = "imbued";
+
+    /// <summary>Id prefix of the Mercenary Warrant stats (skills and tiered supports); searched in "mercenary" stat groups.</summary>
+    public const string MercenaryPrefix = "mercenary.";
+
+    private const string TierSuffix = " (Tier: ";
 
     public StatIndex(IEnumerable<TradeStat> stats)
     {
@@ -45,6 +53,7 @@ public sealed class StatIndex
         var local = new Dictionary<string, string>(StringComparer.Ordinal);
         var heads = new Dictionary<string, int>(StringComparer.Ordinal);
         var imbued = new Dictionary<string, ResolvedOption>(StringComparer.OrdinalIgnoreCase);
+        var mercenary = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         List<(string Key, string Id, bool IsLocal)>? lineFallbacks = null;
         var count = 0;
         foreach (var s in stats)
@@ -57,6 +66,15 @@ public sealed class StatIndex
                     imbued.TryAdd(SupportName(s.Text), new ResolvedOption(s.Id, optionId));
                 }
 
+                continue;
+            }
+
+            // Mercenary skills and supports are plain names: no pattern normalization, no line joining.
+            if (s.Id.StartsWith(MercenaryPrefix, StringComparison.Ordinal))
+            {
+                var mercText = s.Text.AsSpan().Trim();
+                var tier = mercText.LastIndexOf(TierSuffix, StringComparison.Ordinal);
+                mercenary.TryAdd((tier > 0 ? mercText[..tier] : mercText).ToString(), s.Id);
                 continue;
             }
 
@@ -129,6 +147,7 @@ public sealed class StatIndex
         _local = local.ToFrozenDictionary(StringComparer.Ordinal);
         _multiLineHeads = heads.ToFrozenDictionary(StringComparer.Ordinal);
         _imbuedSupports = imbued.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+        _mercenary = mercenary.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
         Count = count;
     }
 
@@ -137,6 +156,46 @@ public sealed class StatIndex
     /// <summary>Trade stat of an imbued gem's built-in support, by the support's name (e.g. "Lifetap").</summary>
     public bool TryResolveImbuedSupport(string supportName, out ResolvedOption option) =>
         _imbuedSupports.TryGetValue(supportName, out option);
+
+    /// <summary>Trade stat of a Mercenary Warrant skill, by its name (e.g. "Burning Arrow").</summary>
+    public bool TryResolveMercenarySkill(string skillName, out string statId) =>
+        _mercenary.TryGetValue(skillName, out statId!);
+
+    /// <summary>
+    /// Trade stats that satisfy a mercenary support of at least the given tier: the support itself plus its higher tiers
+    /// ("Lesser X" (1) → "X" (2) → "Greater X" (3); "Increased X" pairs with "Greater X"). Empty when unknown.
+    /// </summary>
+    public string[] ResolveMercenarySupport(string supportName, int? tier)
+    {
+        if (!_mercenary.TryGetValue(supportName, out var id))
+        {
+            return [];
+        }
+
+        if (tier is not (1 or 2))
+        {
+            return [id];
+        }
+
+        const string lesser = "Lesser ", increased = "Increased ", greater = "Greater ";
+        var bare = supportName.StartsWith(lesser, StringComparison.OrdinalIgnoreCase) ? supportName[lesser.Length..] : supportName;
+        var ids = new List<string>(3) { id };
+        if (tier == 1 && _mercenary.TryGetValue(bare, out var mid) && mid != id)
+        {
+            ids.Add(mid);
+        }
+
+        if (_mercenary.TryGetValue(greater + bare, out var top)
+            || (bare.StartsWith(increased, StringComparison.OrdinalIgnoreCase) && _mercenary.TryGetValue(greater + bare[increased.Length..], out top)))
+        {
+            if (!ids.Contains(top))
+            {
+                ids.Add(top);
+            }
+        }
+
+        return ids.ToArray();
+    }
 
     public static string TypeFor(ModifierKind kind) => kind switch
     {

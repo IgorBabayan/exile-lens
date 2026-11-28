@@ -114,6 +114,12 @@ public sealed class ItemTextParser : IItemParser
         var lastModSectionStart = -1;
         var lastModSectionHasDigits = true;
 
+        // Mercenary Warrant: the mercenary's name, then one section per skill (skill line + linked supports).
+        var isWarrant = baseType.Equals(MercenaryInfo.WarrantBaseType, StringComparison.Ordinal);
+        string? mercName = null, mercBuild = null;
+        int? mercLevel = null;
+        List<MercenarySkill>? mercSkills = isWarrant ? new List<MercenarySkill>(6) : null;
+
         for (var s = 1; s < sections.Count; s++)
         {
             var section = sections[s];
@@ -191,6 +197,20 @@ public sealed class ItemTextParser : IItemParser
                 }
             }
 
+            if (mercSkills is not null && !isPropertySection)
+            {
+                if (mercName is null && mercSkills.Count == 0 && section.Count == 1)
+                {
+                    mercName = first;
+                }
+                else
+                {
+                    mercSkills.Add(ParseMercenarySkill(section));
+                }
+
+                continue;
+            }
+
             // Gem property blocks open with a tag line ("Aura, Banner, Spell, AoE, Duration") and may carry free-text
             // lines between "Key: value" pairs; the first block before any modifiers is still the property block.
             var lenientGemSection = !isPropertySection && rarity == ItemRarity.Gem && modifierSectionCount == 0 && HasPropertyLine(section);
@@ -238,6 +258,12 @@ public sealed class ItemTextParser : IItemParser
                             break;
                         case "Sockets":
                             sockets = ParseSockets(value);
+                            break;
+                        case "Build" when mercSkills is not null:
+                            mercBuild = value;
+                            break;
+                        case "Mercenary Level":
+                            mercLevel = LeadingInt(value);
                             break;
                     }
 
@@ -321,6 +347,14 @@ public sealed class ItemTextParser : IItemParser
 
         var category = DetectCategory(itemClass, baseType, rarity);
 
+        MercenaryInfo? mercenary = null;
+        if (mercSkills is not null)
+        {
+            mercenary = new MercenaryInfo(mercName, mercBuild, mercLevel, mercSkills);
+            name ??= mercName;
+            itemLevel ??= mercLevel; // searched as the trade item level
+        }
+
         if (rarity == ItemRarity.Unknown)
         {
             rarity = category is ItemCategory.Currency or ItemCategory.Essence or ItemCategory.Scarab or ItemCategory.Omen or ItemCategory.Rune
@@ -361,6 +395,7 @@ public sealed class ItemTextParser : IItemParser
             Modifiers = modifiers,
             Affixes = affixes,
             Properties = props,
+            Mercenary = mercenary,
             HasAdvancedAffixInfo = advanced,
             UnparsedLines = unparsed,
         };
@@ -462,6 +497,12 @@ public sealed class ItemTextParser : IItemParser
             return ItemCategory.Relic;
         }
 
+        // Copies as a map fragment, but every warrant is a different mercenary: priced by trade search, not exchange.
+        if (baseType.Equals(MercenaryInfo.WarrantBaseType, StringComparison.Ordinal))
+        {
+            return ItemCategory.MercenaryWarrant;
+        }
+
         if (cls.Contains("Fragment", StringComparison.OrdinalIgnoreCase) || cls.Contains("Map Items", StringComparison.OrdinalIgnoreCase)
             || cls.Contains("Pinnacle", StringComparison.OrdinalIgnoreCase) || cls.Contains("Splinter", StringComparison.OrdinalIgnoreCase))
         {
@@ -522,6 +563,41 @@ public sealed class ItemTextParser : IItemParser
         }
 
         return false;
+    }
+
+    private const string TierMarker = " (Tier: ";
+
+    /// <summary>Skill section of a Mercenary Warrant: first line is the skill, the rest are its supports.</summary>
+    private static MercenarySkill ParseMercenarySkill(List<string> section)
+    {
+        if (section.Count == 1)
+        {
+            return new MercenarySkill(section[0], []);
+        }
+
+        var supports = new MercenarySupport[section.Count - 1];
+        var n = 0;
+        for (var i = 1; i < section.Count; i++)
+        {
+            var line = section[i];
+            if (line[0] is '{' or '(')
+            {
+                continue; // advanced-copy headers / reminder text
+            }
+
+            supports[n++] = ParseMercenarySupport(line);
+        }
+
+        return new MercenarySkill(section[0], n == supports.Length ? supports : supports[..n]);
+    }
+
+    /// <summary>"Greater Fork (Tier: 3)" → ("Greater Fork", 3); a line without a tier keeps its text and a null tier.</summary>
+    internal static MercenarySupport ParseMercenarySupport(string line)
+    {
+        var t = line.LastIndexOf(TierMarker, StringComparison.Ordinal);
+        return t > 0 && line.EndsWith(')')
+            ? new MercenarySupport(line[..t], LeadingInt(line[(t + TierMarker.Length)..^1]))
+            : new MercenarySupport(line, null);
     }
 
     /// <summary>"Supported by Level 1 Lifetap" → "Lifetap"; null for any other line.</summary>

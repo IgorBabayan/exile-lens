@@ -20,6 +20,9 @@ namespace ExileLens.App.ViewModels;
 
 public sealed partial class FilterItemViewModel : ObservableObject
 {
+    private static readonly Avalonia.Thickness DefaultRowMargin = new(0, 2);
+    private static readonly Avalonia.Thickness NestedRowMargin = new(22, 1, 0, 1);
+
     private readonly Action _changed;
 
     public FilterItemViewModel(SearchFilter filter, Action changed)
@@ -53,12 +56,17 @@ public sealed partial class FilterItemViewModel : ObservableObject
 
     public bool HasExtraLines => Lines.Count > 1;
 
-    /// <summary>Option stats (an imbued gem's support) match by option and have no minimum.</summary>
-    public bool HasMinBox => Filter.OptionId is null;
+    /// <summary>Option stats (an imbued gem's support) and mercenary skills/supports are present-or-not: no minimum.</summary>
+    public bool HasMinBox => Filter.OptionId is null && !IsMercenary;
+
+    private bool IsMercenary => Filter.Kind is FilterKind.MercenarySkill or FilterKind.MercenarySupport;
+
+    /// <summary>Mercenary supports are indented under their skill row.</summary>
+    public Avalonia.Thickness RowMargin => Filter.Kind == FilterKind.MercenarySupport ? NestedRowMargin : DefaultRowMargin;
 
     public string Label => Filter.Kind switch
     {
-        FilterKind.ItemLevel => "Item level",
+        // Item level keeps the builder's label ("Item level", "Corpse level", "Mercenary level").
         FilterKind.Quality => "Quality",
         FilterKind.Sockets => "Sockets",
         FilterKind.Links => "Links",
@@ -67,9 +75,10 @@ public sealed partial class FilterItemViewModel : ObservableObject
         _ => Filter.Label,
     };
 
-    public bool IsStat => Filter.Kind == FilterKind.Stat;
+    public bool IsStat => Filter.Kind is FilterKind.Stat or FilterKind.MercenarySkill or FilterKind.MercenarySupport;
 
-    public bool HasRange => Filter.Kind is not (FilterKind.Corrupted or FilterKind.Rarity or FilterKind.Name or FilterKind.Imbued);
+    public bool HasRange => Filter.Kind is not (FilterKind.Corrupted or FilterKind.Rarity or FilterKind.Name or FilterKind.Imbued
+        or FilterKind.MercenarySkill or FilterKind.MercenarySupport);
 
     public bool HasMax => Filter.Kind is FilterKind.MapTier or FilterKind.GemLevel or FilterKind.ItemLevel;
 
@@ -384,6 +393,10 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
 
     public bool HasStatFilters => StatFilters.Count > 0;
 
+    /// <summary>Heading of the modifier list: a Mercenary Warrant lists skills and their linked supports.</summary>
+    [ObservableProperty]
+    private string _statSectionTitle = "Item modifiers";
+
     public bool HasPropertyFilters => PropertyFilters.Count > 0;
 
     public bool HasListings => Listings.Count > 0;
@@ -485,6 +498,7 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
 
         StatFilters.Clear();
         PropertyFilters.Clear();
+        StatSectionTitle = item.Category == ItemCategory.MercenaryWarrant ? "Mercenary skills" : "Item modifiers";
         foreach (var f in session.Filters)
         {
             var vm = new FilterItemViewModel(f, OnFilterChanged);
@@ -1093,6 +1107,12 @@ public sealed partial class PriceCheckOverlayViewModel : ObservableObject, IOver
 
     private static string BuildMeta(ParsedItem item)
     {
+        if (item.Mercenary is { } merc)
+        {
+            var build = merc.Build is { } b ? "Build: " + b : "Mercenary";
+            return merc.Level is { } level ? $"{build} · Level {level}" : build;
+        }
+
         var parts = new List<string>(4);
         parts.Add(item.Rarity switch
         {

@@ -70,6 +70,9 @@ public enum ItemCategory
 
     /// <summary>PoE 1 Necropolis corpse: one trade item per monster, priced by corpse (item) level.</summary>
     Corpse,
+
+    /// <summary>PoE 1 Mercenary Warrant: a single trade item priced by the mercenary's skills and their linked supports.</summary>
+    MercenaryWarrant,
 }
 
 /// <summary>One modifier line as it appears on the item.</summary>
@@ -86,6 +89,21 @@ public sealed record ItemModifier(
 
 /// <summary>An affix (prefix/suffix/implicit/etc). A hybrid affix owns more than one <see cref="ItemModifier"/> line.</summary>
 public sealed record ItemAffix(AffixSlot Slot, string? Name, int? Tier, ModifierKind Kind, IReadOnlyList<int> LineIndexes);
+
+/// <summary>A support linked to a mercenary skill: "Greater Fork (Tier: 3)" → ("Greater Fork", 3).</summary>
+public sealed record MercenarySupport(string Name, int? Tier);
+
+/// <summary>One skill section of a Mercenary Warrant: the skill gem and its linked supports, in copy order.</summary>
+public sealed record MercenarySkill(string Name, IReadOnlyList<MercenarySupport> Supports);
+
+/// <summary>Mercenary stored in a Mercenary Warrant (PoE 1).</summary>
+public sealed record MercenaryInfo(string? Name, string? Build, int? Level, IReadOnlyList<MercenarySkill> Skills)
+{
+    public const string WarrantBaseType = "Mercenary Warrant";
+
+    /// <summary>Infamous builds ("Infamous Flamequiver") are the stronger, more valuable variants.</summary>
+    public bool IsInfamous => Build is { } b && b.StartsWith("Infamous ", StringComparison.Ordinal);
+}
 
 public sealed record SocketInfo(int Count, int LargestLinkGroup, string Raw)
 {
@@ -129,6 +147,9 @@ public sealed class ParsedItem
 
     /// <summary>Key/value properties (e.g. "Item Quantity" → "+80% (augmented)") preserved for display and map analysis.</summary>
     public IReadOnlyDictionary<string, string> Properties { get; init; } = new Dictionary<string, string>();
+
+    /// <summary>Mercenary stored in a Mercenary Warrant; null for every other item.</summary>
+    public MercenaryInfo? Mercenary { get; init; }
 
     /// <summary>True when the clipboard text came from the advanced (Ctrl+Alt+C) copy with affix headers.</summary>
     public bool HasAdvancedAffixInfo { get; init; }
@@ -177,6 +198,7 @@ public sealed class ParsedItem
         Modifiers = Modifiers,
         Affixes = Affixes,
         Properties = Properties,
+        Mercenary = Mercenary,
         HasAdvancedAffixInfo = HasAdvancedAffixInfo,
         UnparsedLines = UnparsedLines,
     };

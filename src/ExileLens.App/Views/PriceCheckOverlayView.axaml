@@ -160,14 +160,14 @@
     </Border>
 
     <!-- Modifier filters -->
-    <TextBlock Text="Item modifiers" Classes="section" IsVisible="{Binding HasStatFilters}" />
+    <TextBlock Text="{Binding StatSectionTitle}" Classes="section" IsVisible="{Binding HasStatFilters}" />
     <ItemsControl ItemsSource="{Binding StatFilters}" IsVisible="{Binding HasStatFilters}">
       <ItemsControl.ItemTemplate>
         <views:FilterRowTemplateSelector>
           <!-- Single-line affix: one wrapping line, origin tag inline before the text. -->
           <views:FilterRowTemplateSelector.SingleLine>
             <DataTemplate x:DataType="vm:FilterItemViewModel">
-              <Grid ColumnDefinitions="*,Auto" Margin="0,2">
+              <Grid ColumnDefinitions="*,Auto" Margin="{Binding RowMargin}">
                 <CheckBox IsChecked="{Binding Enabled}" MinHeight="28">
                   <!-- One wrapping line: origin tag first, then the modifier, tinted like the game tooltip. -->
                   <TextBlock Classes="mod" TextWrapping="Wrap" MaxWidth="290"
