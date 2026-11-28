@@ -172,12 +172,15 @@
               <TextBox Grid.Column="1" Text="{Binding MinText}" Width="58" MinHeight="26" Padding="6,3" FontSize="12"
                        PlaceholderText="min" IsEnabled="{Binding Enabled}" IsVisible="{Binding HasMinBox}" ToolTip.Tip="Minimum value" />
             </Grid>
-            <!-- Hybrid affix: the other lines of the same affix, one checkbox for all, a minimum per line. -->
+            <!-- Hybrid affix: the other lines of the same affix, one checkbox for all, a minimum per line.
+                 Each line sits under the previous one, left-aligned with the first line's text (28 = checkbox glyph + padding).
+                 HorizontalAlignment="Left" is required: a stretched TextBlock narrower than its column (MaxWidth) gets centered. -->
             <ItemsControl ItemsSource="{Binding ExtraLines}" IsVisible="{Binding HasExtraLines}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:FilterLineViewModel">
                   <Grid ColumnDefinitions="*,Auto" Margin="0,2,0,0">
-                    <TextBlock Classes="mod" TextWrapping="Wrap" MaxWidth="262" Margin="28,0,0,0" VerticalAlignment="Center"
+                    <TextBlock Classes="mod" TextWrapping="Wrap" MaxWidth="262" Margin="28,0,0,0"
+                               HorizontalAlignment="Left" VerticalAlignment="Center"
                                Classes.fractured="{Binding IsFractured}" Classes.crafted="{Binding IsCrafted}"
                                Classes.foulborn="{Binding IsFoulborn}"
                                Classes.prefix="{Binding IsPrefix}" Classes.suffix="{Binding IsSuffix}"
